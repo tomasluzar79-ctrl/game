@@ -3,9 +3,9 @@
 *{box-sizing:border-box}body{margin:0;background:#f0f3e8;color:#243925;font:1rem system-ui,sans-serif}main{max-width:1080px;margin:auto;padding:clamp(12px,3vw,28px)}h1{font-size:clamp(1.45rem,4vw,2.4rem);margin:0 0 12px}header,.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}button,select{font:inherit;color:inherit;background:#fff;border:1px solid #83977a;border-radius:9px;padding:9px 13px;min-height:42px;touch-action:manipulation}button:active{background:#d7e3cc}canvas{display:block;width:100%;height:clamp(225px,48dvh,570px);background:#88ac59;border-radius:14px}progress{width:100%;accent-color:#517749}#status{min-height:2.5em;margin:8px 0}.pad{display:grid;grid-template-columns:repeat(3,48px);gap:4px;touch-action:none}.pad button:first-child{grid-column:2}.pad button:nth-child(2){grid-column:1}#jump{background:#2d5b39;color:white;min-width:100px}.hint{margin:8px 0;color:#465d48}
 [data-dir],#jump{touch-action:none;user-select:none;min-width:64px} [data-count]{border-radius:6px;background:#e0e8d5;padding:5px 8px}#lives{background:#ffe2d9;border-radius:6px;padding:5px 8px}#shoot{touch-action:manipulation}#shoot:disabled{opacity:.55}</style></head><body><main><h1>Fíbí hledá cestu domů</h1><header><label>Mapa <select></select></label><button id="reset">Restart</button><button id="next" hidden>Další mapa</button><span id="lives" aria-label="Počet životů"></span><span data-count></span><span data-count></span><span data-count></span></header><progress aria-label="Postup po mapě" max="1" value="0"></progress><canvas aria-label="Herní mapa Fíbí"></canvas><p id="status" role="status"></p><div class="controls"><button data-dir="-1" aria-label="Vlevo">◀</button><button data-dir="1" aria-label="Vpravo">▶</button><button id="jump">Skok</button><button id="shoot">Vystřelit kost</button><p class="hint">Šipky vlevo a vpravo nebo A / D pro běh. Mezerník pro skok, F pro výstřel.</p></div></main><script>
 const levels=[
- {name:'Zahrady',sky:'#a6ddf3',hill:'#85bd85',land:'#508348',end:4680,gaps:[[510,625],[1190,1330],[2060,2200],[2850,2975],[3790,3935]],logs:[345,925,1510,1860,2480,2680,3260,3540,4250]},
- {name:'Les',sky:'#b8ded3',hill:'#69a894',land:'#356c52',end:6040,gaps:[[580,715],[1220,1375],[1980,2125],[2870,3035],[3720,3860],[4630,4785],[5390,5535]],logs:[390,960,1660,2400,2630,3330,3520,4180,4420,5110,5800]},
- {name:'Podél řeky',sky:'#a8d9ed',hill:'#7da9b2',land:'#367b65',end:7480,gaps:[[540,690],[1260,1420],[2000,2170],[2890,3060],[3830,4005],[4740,4900],[5550,5710],[6460,6625]],logs:[330,970,1730,2550,3390,4260,4450,5210,6030,6250,6890,7200]}
+ {name:'Zahrady',theme:'garden',sky:'#a6ddf3',hill:'#85bd85',land:'#508348',end:4680,gaps:[[510,625],[1190,1330],[2060,2200],[2850,2975],[3790,3935]],logs:[345,925,1510,1860,2480,2680,3260,3540,4250]},
+ {name:'Les',theme:'forest',sky:'#b8ded3',hill:'#69a894',land:'#356c52',end:6040,gaps:[[580,715],[1220,1375],[1980,2125],[2870,3035],[3720,3860],[4630,4785],[5390,5535]],logs:[390,960,1660,2400,2630,3330,3520,4180,4420,5110,5800]},
+ {name:'Podél řeky',theme:'river',sky:'#a8d9ed',hill:'#7da9b2',land:'#367b65',end:7480,gaps:[[540,690],[1260,1420],[2000,2170],[2890,3060],[3830,4005],[4740,4900],[5550,5710],[6460,6625]],logs:[330,970,1730,2550,3390,4260,4450,5210,6030,6250,6890,7200]}
 ];
 const floor=345, speed=5.5, gravity=.57, jumpSpeed=-12.8;
 function build(level){
@@ -13,23 +13,31 @@ function build(level){
  for(const [a,b] of level.gaps){ground.push({x:left,y:floor,w:a-left,h:85});left=b;}
  ground.push({x:left,y:floor,w:level.end-left,h:85});
  const logs=level.logs.map(x=>({x,y:floor-33,w:40,h:33}));
- const ledges=level.logs.map(x=>({x:x-105,y:floor-91,w:62,h:13,oneWay:true}));
+ const balconyHeights={garden:[52,76,92],forest:[83,57,97],river:[66,95,58]};
+ const balconies=logs.flatMap((log,i)=>{
+  const bank=ground.find(s=>log.x>=s.x&&log.x<s.x+s.w);
+  const right=log.x-34;
+  const x=Math.max(bank.x+18,right-[86,112,64][i%3]);
+  if(right-x<46)return [];
+  return [{x,y:floor-balconyHeights[level.theme][i%3],w:right-x,h:12,oneWay:true}];
+ });
  const items=[
   ...level.logs.map(x=>({x:x+20,y:floor-73,type:0})),
   ...level.gaps.map(([a,b])=>({x:(a+b)/2,y:floor-108,type:1})),
-  ...ledges.map(({x,y,w})=>({x:x+w/2,y:y-21,type:2}))
+  ...balconies.map(({x,y,w})=>({x:x+w/2,y:y-21,type:2}))
  ];
+ let catIndex=0;
  const enemies=ground.flatMap(({x,w})=>{
   const patrols=[];
   for(let at=x+158;at+64<x+w&&at<level.end-220;at+=145){
    if(logs.some(log=>at+64>log.x-12&&at-32<log.x+log.w+12))continue;
-   patrols.push({x:at,lo:at-32,hi:at+32,y:floor-25,w:32,h:25,dir:1,dead:false});
+   patrols.push({x:at,lo:at-32,hi:at+32,y:floor-25,w:32,h:25,dir:1,dead:false,coat:catIndex++%5});
   }
   return patrols;
  });
- return {...level,ground,logs,ledges,enemies,solids:[...ground,...logs,...ledges],items,goal:level.end-100};
+ return {...level,ground,logs,balconies,enemies,solids:[...ground,...logs,...balconies],items,goal:level.end-100};
 }
-function player(x=60){return {x,y:floor-32,w:34,h:32,vx:0,vy:0,grounded:true,face:1,phase:0,coyote:0};}
+function player(x=60){return {x,y:floor-32,w:34,h:32,vx:0,vy:0,grounded:true,face:1,phase:0,coyote:0,rest:0};}
 const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
 function step(p,m,dir,buffer){
  p.vx=dir*speed;
@@ -66,7 +74,7 @@ function updateCounts(){
 }
 function reset(i){
  level=i;m=build(levels[i]);p=player();checkpoint=p.x;counts=[0,0,0];lives=lifeLimit;shots=[];buffer=0;immunity=0;won=false;
- select.value=i;progress.value=0;next.hidden=true;status.textContent='Doběhni k domečku. Na brouky skoč shora nebo po nich vystřel kost.';updateCounts();
+ select.value=i;progress.value=0;next.hidden=true;status.textContent='Doběhni k domečku. Kočky zaženeš skokem shora nebo vystřelenou kostí.';updateCounts();
 }
 function enemyContact(p,enemy,previousBottom,wasFalling){
  if(enemy.dead||!overlap(p,enemy))return '';
@@ -108,6 +116,7 @@ function tick(){
  const previousBottom=p.y+p.h;
  const wasFalling=p.vy>0;
  buffer=step(p,m,dir,buffer);
+ p.rest=p.grounded&&dir===0?Math.min(18,p.rest+1):0;
  for(const enemy of m.enemies){
   if(enemy.dead)continue;
   enemy.x+=enemy.dir*(1+level*.25);
@@ -118,7 +127,7 @@ function tick(){
    enemy.dead=true;p.y=enemy.y-p.h;p.vy=-8.8;p.grounded=false;p.coyote=0;
   }
   if(contact==='hit'&&immunity===0){
-   loseLife('Brouk tě chytil. Fíbí se vrátila na poslední bezpečné místo.');return;
+   loseLife('Kočka tě chytila. Fíbí se vrátila na poslední bezpečné místo.');return;
   }
  }
  if(p.y>440){loseLife('Fíbí spadla do vody a vrátila se na břeh.');return;}
@@ -130,6 +139,7 @@ function tick(){
  }
  progress.value=Math.max(0,Math.min(1,p.x/m.goal));
  if(p.x+p.w>=m.goal&&p.y+p.h>=floor-8){
+  p.vx=0;p.rest=p.grounded?18:0;
   won=true;updateCounts();status.textContent=level===levels.length-1?'Fíbí je doma!':'Fíbí dorazila k domečku!';
   next.hidden=level===levels.length-1;
  }
@@ -142,24 +152,42 @@ function line(points,color,width){
  for(const point of points.slice(1))ctx.lineTo(...point);
  ctx.stroke();
 }
+const coats=[
+ {fur:'#c8783c',shade:'#8a452b',mark:'#e6a464',eye:'#e4cf79',pattern:'tabby'},
+ {fur:'#41484c',shade:'#282d32',mark:'#f4eae0',eye:'#d3de77',pattern:'bib'},
+ {fur:'#a1aab6',shade:'#58636d',mark:'#72808f',eye:'#d4e593',pattern:'tabby'},
+ {fur:'#eee1c6',shade:'#aa8668',mark:'#bf7751',eye:'#86c8dd',pattern:'spots'},
+ {fur:'#e3d6c1',shade:'#574030',mark:'#805742',eye:'#83bad7',pattern:'points'}
+];
 function drawEnemy(enemy,now){
- const {x,y,dir}=enemy, stride=Math.sin(now/80+x*.08)*3;
+ const {x,y,dir}=enemy,coat=coats[enemy.coat];
+ const stride=Math.sin(now/76+x*.08)*3;
  ctx.save();ctx.translate(x+16,y+14);ctx.scale(dir,1);
- ellipse(0,11,16,4,'#23352b40');
- for(const [i,leg] of [-10,-3,5,11].entries()){
-  line([[leg,2],[leg+(i%2?stride:-stride),9]],'#563b55',3);
+ ellipse(0,11,16,3,'#23352b40');
+ line([[-11,0],[-17,-3],[-21,-10],[-22,-13+stride*.6]],coat.shade,3.8);
+ for(const [i,leg] of [-10,-5,4,9].entries()){
+  line([[leg,2],[leg+(i%2?stride:-stride),9]],i%2?coat.fur:coat.shade,3.9);
  }
- ellipse(-2,0,14,10,'#755274');ellipse(-4,-4,10,6,'#a4769a');
- line([[-3,-8],[-3,5]],'#573b55',1.4);
- ellipse(8,-2,7,7,'#63425f');
- line([[9,-7],[14,-13],[17,-13]],'#63425f',1.8);
- ellipse(12,-3,2.7,2.7,'#fff3ce');ellipse(13,-3,1.15,1.4,'#30202d');
+ ellipse(-2,1,14,7.5,coat.fur);
+ if(coat.pattern==='tabby'){
+  for(const x of [-10,-5,0])line([[x,-5],[x+1,-1],[x,2]],coat.shade,1.55);
+ }
+ if(coat.pattern==='spots'){ellipse(-8,0,5,4,coat.mark);ellipse(2,3,4,3,coat.shade);}
+ ellipse(10,-4,8,7.5,coat.pattern==='points'?coat.shade:coat.fur);
+ if(coat.pattern==='bib')ellipse(10,2,4,5,coat.mark);
+ ctx.fillStyle=coat.shade;
+ ctx.fill(new Path2D('M 3 -8 L 3 -16 L 9 -11 L 12 -11 L 16 -16 L 17 -7 Z'));
+ ellipse(14,-5,2.4,2,coat.eye);ellipse(14.6,-5,.65,1.55,'#25262a');
+ ellipse(17,-1,1.1,.8,'#543c38');
+ line([[14,0],[20,1]],'#ead9c6',.6);
  ctx.restore();
 }
 function drawDog(now){
  const running=p.grounded&&p.vx!==0;
  const bob=running?Math.abs(Math.sin(p.phase))*2.6:Math.sin(now/340)*.45;
  const rising=p.vy<0;
+ const sit=p.grounded?Math.max(0,(p.rest-8)/10):0;
+ const sitting=sit>=1;
  const shape=(path,fill,outline='#514034',width=.85)=>{
   const outlinePath=new Path2D(path);
   ctx.fillStyle=fill;ctx.fill(outlinePath);
@@ -183,19 +211,27 @@ function drawDog(now){
  ctx.save();
  ctx.translate(p.x+p.w/2,p.y+p.h-18);
  ctx.scale(p.face,1);
- ctx.translate(0,-bob);
+ ctx.translate(0,-bob*(1-sit));
  if(!p.grounded)ctx.rotate(rising?-.13:.13);
  ctx.save();
- ctx.translate(-20,-6);ctx.rotate(Math.sin(now/(running?82:135))*(running?.26:.14));
+ ctx.translate(-20,-6+sit*16);ctx.rotate(Math.sin(now/(running?82:135))*(running?.26:.14));
  shape('M 2 -1 C -7 -2 -11 -7 -15 -12 C -17 -14 -19 -12 -17 -9 C -14 -2 -6 4 1 4 Z','#a69683');
  ctx.restore();
- leg(-15,Math.PI,false,true);leg(12,0,true,true);
+ if(sit<1)leg(-15,Math.PI,false,true);
+ leg(12,0,true,true);
+ ctx.save();ctx.translate(-7*sit,2*sit);ctx.rotate(.48*sit);
  shape('M -23 -3 C -23 -11 -16 -13 -9 -12 C -1 -11 6 -13 12 -16 C 18 -14 20 -4 16 3 C 13 9 5 6 -1 4 C -9 2 -11 7 -17 5 C -22 4 -23 1 -23 -3 Z','#baaa94');
  shape('M -20 -8 C -11 -12 -3 -9 6 -11 C 2 -7 -9 -6 -19 -5 Z','#d9cbb7',null);
  shape('M 8 -10 C 12 -12 15 -15 17 -15 C 20 -11 20 -4 17 2 C 15 7 11 7 8 5 C 12 2 13 -4 8 -10 Z','#f2eee4',null);
- leg(-16,0,false,false);leg(13,Math.PI,true,false);
+ ctx.restore();
+ if(sit>0){
+  ellipse(-16,8+sit*3,7+sit*5,4+sit*3,'#a69480');
+  ellipse(-12,11+sit*4,5+sit*2,3,'#cdbba5');
+ }
+ if(sit<1)leg(-16,0,false,false);
+ leg(13,Math.PI,true,false);
  ctx.save();
- ctx.translate(13,-12);
+ ctx.translate(13-4*sit,-12-4*sit);
  ctx.rotate(running?Math.sin(p.phase)*.045:Math.sin(now/460)*.035);
  shape('M -6 -1 Q -1 3 6 3 L 6 6 Q -1 7 -8 2 Z','#29353a');
  line([[-5,1],[-3,3]],'#ac735b',1.3);
@@ -207,6 +243,11 @@ function drawDog(now){
  shape('M 25 -10 Q 28 -11 29 -9 Q 29 -7 27 -6 Q 25 -7 25 -10 Z','#2e3035',null);
  ellipse(27,-9.4,.8,.35,'#6c7076');
  line([[14,-3],[19,-2],[24,-3]],'#514743',.95);
+ if(sitting){
+  const pant=Math.sin(now/94)*.75;
+  shape('M 18 -2 Q 22 -3 23 -1 L 25 '+(4+pant)+' Q 25 '+(7+pant)+' 22 '+(6+pant)+' Q 20 '+(5+pant)+' 19 1 Z','#df8790','#8d575d',.6);
+  line([[22,1],[23,4+pant]],'#b46672',.55);
+ }
  ellipse(11.5,-11.9,2.2,1.65,'#43362e');ellipse(12.1,-12.4,.62,.55,'#fff1db');
  ctx.save();
  ctx.translate(1,-14);
@@ -226,6 +267,30 @@ function drawItem(item,now){
   return;
  }
  ellipse(x,y+3,5,4,colors[type]);for(const [a,b] of [[-6,-1],[-3,-5],[3,-5],[6,-1]])ellipse(x+a,y+b,2,2.8,colors[type]);
+}
+function drawBalcony(s,theme,front){
+ const palette={
+  garden:{post:'#a07350',trim:'#d6ac7d',rail:'#b9865d'},
+  forest:{post:'#624137',trim:'#b8895c',rail:'#8e5f46'},
+  river:{post:'#687675',trim:'#c6cebc',rail:'#92a49f'}
+ }[theme];
+ if(!front){
+  for(const x of [s.x+7,s.x+s.w-12]){
+   ctx.fillStyle=palette.post;ctx.fillRect(x,s.y,5,floor-s.y);
+   ellipse(x+2.5,floor,6,2,'#52463b55');
+  }
+  line([[s.x+9,floor-15],[s.x+s.w-10,s.y+8]],palette.post,3);
+  const postCount=Math.ceil(s.w/19);
+  for(let i=0;i<=postCount;i++){
+   const x=s.x+3+(s.w-6)*i/postCount;
+   line([[x,s.y],[x,s.y-22]],palette.rail,2.8);
+  }
+  line([[s.x+2,s.y-23],[s.x+s.w-2,s.y-23]],palette.trim,4);
+  return;
+ }
+ ctx.fillStyle=palette.post;ctx.fillRect(s.x,s.y,s.w,s.h);
+ ctx.fillStyle=palette.trim;ctx.fillRect(s.x,s.y,s.w,3);
+ for(let x=s.x+12;x<s.x+s.w-4;x+=16)line([[x,s.y+4],[x,s.y+s.h-2]],palette.rail,1.2);
 }
 function render(now){
  const w=canvas.clientWidth,h=canvas.clientHeight,dpr=Math.min(2,devicePixelRatio||1);
@@ -253,7 +318,7 @@ function render(now){
   ctx.fillStyle='#438fae';ctx.fillRect(a,floor+13,b-a,65);
   for(let x=a+7;x<b-12;x+=24)line([[x,floor+23+Math.sin(now/210+x)*2],[x+9,floor+23+Math.sin(now/210+x)*2]],'#a4e0eb',2);
  }
- for(const s of [...m.ground,...m.ledges]){
+ for(const s of m.ground){
   ctx.fillStyle='#675441';ctx.fillRect(s.x,s.y,s.w,s.h);
   ctx.fillStyle=m.land;ctx.fillRect(s.x,s.y,s.w,8);
   ctx.fillStyle='#cadd8b';ctx.fillRect(s.x,s.y,s.w,2);
@@ -266,6 +331,8 @@ function render(now){
    }
   }
  }
+ const visibleBalconies=m.balconies.filter(s=>s.x+s.w>=camera-30&&s.x<=camera+view+30);
+ for(const balcony of visibleBalconies)drawBalcony(balcony,m.theme,false);
  for(const s of m.logs){ctx.fillStyle='#875838';ctx.fillRect(s.x,s.y+2,s.w-8,s.h-2);ellipse(s.x+s.w-9,s.y+17,9,16,'#bb8b5a');ellipse(s.x+s.w-9,s.y+17,4,9,'#9a6946');}
  for(const item of m.items)if(!item.taken&&item.x>=camera-20&&item.x<=camera+view+20)drawItem(item,now);
  const x=m.goal;
@@ -275,6 +342,7 @@ function render(now){
  for(const enemy of m.enemies)if(!enemy.dead&&enemy.x>=camera-40&&enemy.x<=camera+view+40)drawEnemy(enemy,now);
  for(const bone of shots)drawItem({x:bone.x+bone.w/2,y:bone.y+bone.h/2,type:0},now);
  if(immunity===0||Math.floor(immunity/6)%2===0)drawDog(now);
+ for(const balcony of visibleBalconies)drawBalcony(balcony,m.theme,true);
  ctx.restore();
 }
 let last=0,acc=0;
