@@ -122,23 +122,63 @@ function drawEnemy(enemy,now){
  ctx.restore();
 }
 function drawDog(now){
- const gait=p.grounded&&p.vx?Math.sin(p.phase):0;
- const bob=p.grounded?(p.vx?Math.abs(gait)*2:Math.sin(now/220)):-3;
- ctx.save();ctx.translate(p.x+p.w/2,p.y+17-bob);ctx.scale(p.face,1);
- line([[-14,0],[-22,-5],[-25,-12+Math.sin(now/70)*4]],'#49322c',5);
- for(const [i,x] of [-12,-6,6,11].entries()){
-  const swing=p.grounded?gait*(i%2?5:-5):(i<2?5:-5);
-  line([[x,5],[x+swing,12],[x+swing+2,p.grounded?15:10]],i%2?'#ddab77':'#a87956',5);
- }
- ellipse(-3,0,16,9,'#d59a68');
- ellipse(-1,3,13,5,'#edbf8e');
- ellipse(-7,-3,11,6,'#624637');
- ellipse(12,-7,10,10,'#d39b67');
- ctx.save();ctx.translate(8,-9);ctx.rotate(gait*.22-.25);ellipse(-2,4,4,8,'#52382e');ctx.restore();
- ellipse(19,-4,6,4,'#eed1a5');ellipse(23,-5,2.7,2.5,'#382b29');
- ellipse(15,-10,1.8,2,'#302420');ellipse(15.5,-10.6,.65,.65,'#fff8e1');
- line([[17,-2],[21,-1]],'#8c5a48',1.1);
- line([[8,-1],[11,4]],'#db5148',3.5);ellipse(11,5,1.8,2.2,'#f6d36b');ctx.restore();
+ const running=p.grounded&&p.vx!==0;
+ const bob=running?Math.abs(Math.sin(p.phase))*2.6:Math.sin(now/340)*.45;
+ const rising=p.vy<0;
+ const shape=(path,fill,outline='#514034',width=.85)=>{
+  const outlinePath=new Path2D(path);
+  ctx.fillStyle=fill;ctx.fill(outlinePath);
+  if(outline){ctx.strokeStyle=outline;ctx.lineWidth=width;ctx.lineJoin='round';ctx.stroke(outlinePath);}
+ };
+ const leg=(x,phase,front,far)=>{
+  const stride=running?Math.sin(p.phase+phase):0;
+  const swing=p.grounded?stride*9:(front?(rising?8:3):(rising?-8:-4));
+  const lift=p.grounded?Math.max(0,Math.cos(p.phase+phase))*(running?5.5:0):(rising?8:4);
+  const knee=x+swing*.54+(front?1:-3);
+  const foot=x+swing;
+  const ankle=18-lift;
+  shape(
+   'M '+(x-3)+' -3 Q '+(x+2)+' -5 '+(x+4)+' 1 L '+(knee+2)+' 8 L '+(foot+2)+' '+(ankle-2)+
+   ' Q '+(foot+6)+' '+(ankle-1)+' '+(foot+4)+' '+ankle+' L '+(foot-2)+' '+ankle+
+   ' Q '+(foot-4)+' '+ankle+' '+(foot-3)+' '+(ankle-3)+' L '+(knee-2)+' 9 Z',
+   far?'#9b785f':'#cba17c'
+  );
+  ellipse(foot+1,ankle-1.55,3.15,1.35,far?'#ccb9a2':'#f4e7d4');
+ };
+ ctx.save();
+ ctx.translate(p.x+p.w/2,p.y+p.h-18);
+ ctx.scale(p.face,1);
+ ctx.translate(0,-bob);
+ if(!p.grounded)ctx.rotate(rising?-.13:.13);
+ ctx.save();
+ ctx.translate(-20,-6);ctx.rotate(Math.sin(now/(running?82:135))*(running?.26:.14));
+ shape('M 2 -1 C -7 -2 -11 -7 -15 -12 C -17 -14 -19 -12 -17 -9 C -14 -2 -6 4 1 4 Z','#b18564');
+ ctx.restore();
+ leg(-15,Math.PI,false,true);leg(12,0,true,true);
+ shape('M -23 -3 C -23 -11 -16 -13 -9 -12 C -1 -11 6 -13 12 -16 C 18 -14 20 -4 16 3 C 13 9 5 6 -1 4 C -9 2 -11 7 -17 5 C -22 4 -23 1 -23 -3 Z','#cda783');
+ shape('M -20 -8 C -11 -12 -3 -9 6 -11 C 2 -7 -9 -6 -19 -5 Z','#e6c5a0',null);
+ shape('M 8 -10 C 12 -12 15 -15 17 -15 C 20 -11 20 -4 17 2 C 15 7 11 7 8 5 C 12 2 13 -4 8 -10 Z','#f5e8d5',null);
+ leg(-16,0,false,false);leg(13,Math.PI,true,false);
+ ctx.save();
+ ctx.translate(13,-12);
+ ctx.rotate(running?Math.sin(p.phase)*.045:Math.sin(now/460)*.035);
+ shape('M -6 -1 Q -1 3 6 3 L 6 6 Q -1 7 -8 2 Z','#29353a');
+ line([[-5,1],[-3,3]],'#ac735b',1.3);
+ line([[0,3],[2,5]],'#cc9d74',1.3);
+ ellipse(3,7,1.15,1.5,'#b9a58f');
+ shape('M -5 -7 C -8 -13 -4 -19 4 -19 C 10 -19 13 -16 16 -12 Q 20 -10 26 -9 Q 29 -7 26 -4 Q 23 -1 17 -1 Q 12 3 6 1 Q -1 1 -5 -7 Z','#d6b191');
+ shape('M 8 -13 Q 13 -15 16 -11 Q 21 -9 27 -9 L 26 -4 Q 21 0 14 0 Q 10 -2 8 -5 Z','#a78b78',null);
+ shape('M 17 -4 Q 22 -4 26 -6 Q 30 -9 26 -10 Q 23 -11 22 -8 Q 22 -6 17 -4 Z','#303239',null);
+ line([[15,-1],[20,-1],[24,-3]],'#54433d',1);
+ ellipse(11.5,-11.9,2.2,1.65,'#43362e');ellipse(12.1,-12.4,.62,.55,'#fff1db');
+ ctx.save();
+ ctx.translate(1,-14);
+ ctx.rotate(running?Math.sin(p.phase)*.13:(!p.grounded?-.18:0));
+ shape('M 0 -2 C 4 -3 6 -1 5 3 C 4 8 4 13 0 14 C -3 14 -6 10 -8 6 C -8 3 -4 0 0 -2 Z','#876e61');
+ shape('M -7 6 Q -2 7 1 11 Q 1 14 -2 12 Z','#725b52',null);
+ ctx.restore();
+ ctx.restore();
+ ctx.restore();
 }
 function drawItem(item,now){
  const {x,type}=item,y=item.y+Math.sin(now/180+x)*3;
