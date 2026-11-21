@@ -19,7 +19,16 @@ function build(level){
   ...level.gaps.map(([a,b])=>({x:(a+b)/2,y:floor-108,type:1})),
   ...ledges.map(({x,y,w})=>({x:x+w/2,y:y-21,type:2}))
  ];
- return {...level,ground,logs,ledges,solids:[...ground,...logs,...ledges],items,goal:level.end-100};
+ const enemies=ground.flatMap(({x,w})=>{
+  const points=[];
+  for(let at=x+215;at<x+w-120&&at<level.end-260;at+=260){
+   if(level.logs.every(log=>Math.abs(log-at)>88)){
+    points.push({x:at,start:at,y:floor-25,w:32,h:25,dir:1,dead:false});
+   }
+  }
+  return points;
+ });
+ return {...level,ground,logs,ledges,enemies,solids:[...ground,...logs,...ledges],items,goal:level.end-100};
 }
 function player(x=60){return {x,y:floor-32,w:34,h:32,vx:0,vy:0,grounded:true,face:1,phase:0,coyote:0};}
 const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
@@ -52,13 +61,31 @@ levels.forEach(({name},i)=>select.add(new Option(name,i)));
 function updateCounts(){tally.forEach((node,i)=>node.textContent=labels[i]+' '+counts[i]);}
 function reset(i){
  level=i;m=build(levels[i]);p=player();checkpoint=p.x;counts=[0,0,0];buffer=0;won=false;
- select.value=i;progress.value=0;next.hidden=true;status.textContent='Dostaň se k domečku a cestou sbírej předměty.';updateCounts();
+ select.value=i;progress.value=0;next.hidden=true;status.textContent='Doběhni k domečku. Nepřátele porazíš skokem na ně shora.';updateCounts();
+}
+function enemyContact(p,enemy,previousBottom,wasFalling){
+ if(enemy.dead||!overlap(p,enemy))return '';
+ return wasFalling&&previousBottom<=enemy.y+2?'stomp':'hit';
 }
 function tick(){
  if(won)return;
  const held=[...pointers.values()];
  const dir=Number(keys.has('ArrowRight')||keys.has('KeyD')||held.includes(1))-Number(keys.has('ArrowLeft')||keys.has('KeyA')||held.includes(-1));
+ const previousBottom=p.y+p.h;
+ const wasFalling=p.vy>0;
  buffer=step(p,m,dir,buffer);
+ for(const enemy of m.enemies){
+  if(enemy.dead)continue;
+  enemy.x+=enemy.dir*(1+level*.25);
+  if(Math.abs(enemy.x-enemy.start)>=42)enemy.dir*=-1;
+  const contact=enemyContact(p,enemy,previousBottom,wasFalling);
+  if(contact==='stomp'){
+   enemy.dead=true;p.y=enemy.y-p.h;p.vy=-8.8;p.grounded=false;p.coyote=0;
+  }
+  if(contact==='hit'){
+   p=player(checkpoint);buffer=0;status.textContent='Fíbí se vrátila na bezpečné místo. Na nepřítele skoč shora.';return;
+  }
+ }
  if(p.y>440){p=player(checkpoint);buffer=0;status.textContent='Fíbí se vrátila na břeh. Zkus skočit znovu.';return;}
  for(const [a,b] of m.gaps)if(p.grounded&&p.y+p.h===floor&&p.x>=b&&p.x<b+115)checkpoint=Math.max(checkpoint,b+8);
  for(const item of m.items){
@@ -80,6 +107,20 @@ function line(points,color,width){
  for(const point of points.slice(1))ctx.lineTo(...point);
  ctx.stroke();
 }
+function drawEnemy(enemy,now){
+ const {x,y,dir}=enemy, stride=Math.sin(now/80+x*.08)*3;
+ ctx.save();ctx.translate(x+16,y+14);ctx.scale(dir,1);
+ ellipse(0,11,16,4,'#23352b40');
+ for(const [i,leg] of [-10,-3,5,11].entries()){
+  line([[leg,2],[leg+(i%2?stride:-stride),9]],'#563b55',3);
+ }
+ ellipse(-2,0,14,10,'#755274');ellipse(-4,-4,10,6,'#a4769a');
+ line([[-3,-8],[-3,5]],'#573b55',1.4);
+ ellipse(8,-2,7,7,'#63425f');
+ line([[9,-7],[14,-13],[17,-13]],'#63425f',1.8);
+ ellipse(12,-3,2.7,2.7,'#fff3ce');ellipse(13,-3,1.15,1.4,'#30202d');
+ ctx.restore();
+}
 function drawDog(now){
  const gait=p.grounded&&p.vx?Math.sin(p.phase):0;
  const bob=p.grounded?(p.vx?Math.abs(gait)*2:Math.sin(now/220)):-3;
@@ -89,12 +130,15 @@ function drawDog(now){
   const swing=p.grounded?gait*(i%2?5:-5):(i<2?5:-5);
   line([[x,5],[x+swing,12],[x+swing+2,p.grounded?15:10]],i%2?'#ddab77':'#a87956',5);
  }
- ellipse(-3,0,16,9,'#e0ac75');
+ ellipse(-3,0,16,9,'#d59a68');
+ ellipse(-1,3,13,5,'#edbf8e');
  ellipse(-7,-3,11,6,'#624637');
  ellipse(12,-7,10,10,'#d39b67');
  ctx.save();ctx.translate(8,-9);ctx.rotate(gait*.22-.25);ellipse(-2,4,4,8,'#52382e');ctx.restore();
- ellipse(19,-4,6,4,'#eed1a5');ellipse(23,-5,2.7,2.5,'#382b29');ellipse(15,-10,1.4,1.7,'#302420');
- line([[8,-1],[11,4]],'#ef714e',3);ctx.restore();
+ ellipse(19,-4,6,4,'#eed1a5');ellipse(23,-5,2.7,2.5,'#382b29');
+ ellipse(15,-10,1.8,2,'#302420');ellipse(15.5,-10.6,.65,.65,'#fff8e1');
+ line([[17,-2],[21,-1]],'#8c5a48',1.1);
+ line([[8,-1],[11,4]],'#db5148',3.5);ellipse(11,5,1.8,2.2,'#f6d36b');ctx.restore();
 }
 function drawItem(item,now){
  const {x,type}=item,y=item.y+Math.sin(now/180+x)*3;
@@ -112,7 +156,12 @@ function render(now){
  if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
  const scale=h/420, view=w/scale, camera=Math.max(0,Math.min(m.end-view,p.x-view*.32));
  ctx.setTransform(dpr*scale,0,0,dpr*scale,0,0);
- ctx.fillStyle=m.sky;ctx.fillRect(0,0,view,420);
+ const sky=ctx.createLinearGradient(0,0,0,345);
+ sky.addColorStop(0,m.sky);sky.addColorStop(1,'#fff2d4');ctx.fillStyle=sky;ctx.fillRect(0,0,view,420);
+ for(let i=-1;i<Math.ceil(view/235)+2;i++){
+  const x=i*235-(camera*.12)%235,y=49+(i%3)*19;
+  ellipse(x,y+12,42,10,'#fffcf0b8');ellipse(x-11,y+4,19,15,'#fffcf0b8');ellipse(x+12,y+5,23,14,'#fffcf0b8');
+ }
  ellipse(view*.80,75,26,26,'#fff1bb');
  for(let i=-1;i<Math.ceil(view/220)+2;i++){
   const x=i*220-(camera*.24)%220;
@@ -129,7 +178,16 @@ function render(now){
  }
  for(const s of [...m.ground,...m.ledges]){
   ctx.fillStyle='#675441';ctx.fillRect(s.x,s.y,s.w,s.h);
-  ctx.fillStyle=m.land;ctx.fillRect(s.x,s.y,s.w,7);
+  ctx.fillStyle=m.land;ctx.fillRect(s.x,s.y,s.w,8);
+  ctx.fillStyle='#cadd8b';ctx.fillRect(s.x,s.y,s.w,2);
+  for(let x=Math.max(s.x+9,Math.floor(camera/35)*35+s.x%35+9);x<Math.min(s.x+s.w-5,camera+view+40);x+=35){
+   line([[x-3,s.y+10],[x+7,s.y+10]],'#987858',2);
+   if(s.h>20){
+    line([[x,s.y+28],[x+4,s.y+27]],'#8f7357',2);
+    line([[x-2,s.y],[x-5,s.y-5],[x,s.y-2],[x+4,s.y-6]],m.land,1.4);
+    if(Math.round(x)%3===0){ellipse(x+4,s.y-7,2,2,'#f9d4a6');ellipse(x+4,s.y-7,.8,.8,'#da8e58');}
+   }
+  }
  }
  for(const s of m.logs){ctx.fillStyle='#875838';ctx.fillRect(s.x,s.y+2,s.w-8,s.h-2);ellipse(s.x+s.w-9,s.y+17,9,16,'#bb8b5a');ellipse(s.x+s.w-9,s.y+17,4,9,'#9a6946');}
  for(const item of m.items)if(!item.taken&&item.x>=camera-20&&item.x<=camera+view+20)drawItem(item,now);
@@ -137,6 +195,7 @@ function render(now){
  ctx.fillStyle='#f4d9a3';ctx.fillRect(x,floor-59,67,59);
  ctx.fillStyle='#b45c4b';ctx.beginPath();ctx.moveTo(x-9,floor-58);ctx.lineTo(x+34,floor-94);ctx.lineTo(x+76,floor-58);ctx.fill();
  ctx.fillStyle='#554737';ctx.fillRect(x+12,floor-35,23,35);ctx.fillStyle='#91cbd4';ctx.fillRect(x+43,floor-43,15,17);
+ for(const enemy of m.enemies)if(!enemy.dead&&enemy.x>=camera-40&&enemy.x<=camera+view+40)drawEnemy(enemy,now);
  drawDog(now);ctx.restore();
 }
 let last=0,acc=0;
