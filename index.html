@@ -1,130 +1,168 @@
 <!doctype html>
 <html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fíbí hledá cestu domů</title><style>
 *{box-sizing:border-box}body{margin:0;background:#f0f3e8;color:#243925;font:1rem system-ui,sans-serif}main{max-width:1080px;margin:auto;padding:clamp(12px,3vw,28px)}h1{font-size:clamp(1.45rem,4vw,2.4rem);margin:0 0 12px}header,.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}button,select{font:inherit;color:inherit;background:#fff;border:1px solid #83977a;border-radius:9px;padding:9px 13px;min-height:42px;touch-action:manipulation}button:active{background:#d7e3cc}canvas{display:block;width:100%;height:clamp(225px,48dvh,570px);background:#88ac59;border-radius:14px}progress{width:100%;accent-color:#517749}#status{min-height:2.5em;margin:8px 0}.pad{display:grid;grid-template-columns:repeat(3,48px);gap:4px;touch-action:none}.pad button:first-child{grid-column:2}.pad button:nth-child(2){grid-column:1}#jump{background:#2d5b39;color:white;min-width:100px}.hint{margin:8px 0;color:#465d48}
-</style></head><body><main><h1>Fíbí hledá cestu domů</h1><header><label>Mapa <select></select></label><button id="reset">Restart</button><button id="next" hidden>Další mapa</button></header><progress aria-label="Postup po mapě" max="1" value="0"></progress><canvas aria-label="Herní mapa Fíbí"></canvas><p id="status" role="status"></p><div class="controls"><div class="pad" aria-label="Pohyb"><button data-dir="0,-1" aria-label="Nahoru">↑</button><button data-dir="-1,0" aria-label="Vlevo">←</button><button data-dir="0,1" aria-label="Dolů">↓</button><button data-dir="1,0" aria-label="Vpravo">→</button></div><button id="jump">Skok</button><p class="hint">Šipky nebo WASD pro pohyb. Mezerník pro skok ve směru pohybu.</p></div></main><script>
-const maps=[
- {name:'Zahrady',width:44,height:17,barriers:[[9,1,4],[18,2,12],[28,1,7],[36,1,13]],colors:['#88ac59','#94b762']},
- {name:'Les',width:60,height:21,barriers:[[10,2,15],[20,1,5],[31,1,16],[43,2,7],[52,1,14]],colors:['#527c53','#5a8559']},
- {name:'Podél řeky',width:76,height:25,barriers:[[11,2,5],[22,1,18],[34,2,9],[46,1,19],[57,2,6],[66,1,16]],colors:['#78a17b','#85ad85']}
+[data-dir],#jump{touch-action:none;user-select:none;min-width:64px} [data-count]{border-radius:6px;background:#e0e8d5;padding:5px 8px}</style></head><body><main><h1>Fíbí hledá cestu domů</h1><header><label>Mapa <select></select></label><button id="reset">Restart</button><button id="next" hidden>Další mapa</button><span data-count></span><span data-count></span><span data-count></span></header><progress aria-label="Postup po mapě" max="1" value="0"></progress><canvas aria-label="Herní mapa Fíbí"></canvas><p id="status" role="status"></p><div class="controls"><button data-dir="-1" aria-label="Vlevo">◀</button><button data-dir="1" aria-label="Vpravo">▶</button><button id="jump">Skok</button><p class="hint">Šipky vlevo a vpravo nebo A / D pro běh. Mezerník pro skok.</p></div></main><script>
+const levels=[
+ {name:'Zahrady',sky:'#a6ddf3',hill:'#85bd85',land:'#508348',end:2800,gaps:[[510,625],[1190,1330],[2060,2200]],logs:[345,925,1510,1860,2480]},
+ {name:'Les',sky:'#b8ded3',hill:'#69a894',land:'#356c52',end:3690,gaps:[[580,715],[1220,1375],[1980,2125],[2870,3035]],logs:[390,960,1660,2400,2630,3330]},
+ {name:'Podél řeky',sky:'#a8d9ed',hill:'#7da9b2',land:'#367b65',end:4660,gaps:[[540,690],[1260,1420],[2000,2170],[2890,3060],[3830,4005]],logs:[330,970,1730,2550,3390,4260]}
 ];
-const cell=(m,x,y)=>{
- if(x<0||x>=m.width||y<0||y>=m.height)return 'edge';
- for(const [left,size,cross] of m.barriers){
-  if(x>=left&&x<left+size)return Math.abs(y-cross)<=1?(size===2?'water':'log'):'rock';
- }
- return 'grass';
-};
-const home=m=>[m.width-3,Math.floor(m.height/2)];
-const start=m=>[2,Math.floor(m.height/2)];
-function move(m,x,y,dx,dy,jump){
- const next=cell(m,x+dx,y+dy);
- if(!jump)return next==='grass'?[x+dx,y+dy]:null;
- for(let d=1;d<=3;d++){
-  const tile=cell(m,x+dx*d,y+dy*d);
-  if(tile==='edge'||tile==='rock')return null;
-  if(tile==='grass'&&d>1)return [x+dx*d,y+dy*d];
- }
- return null;
+const floor=345, speed=5.5, gravity=.57, jumpSpeed=-12.8;
+function build(level){
+ const ground=[];let left=0;
+ for(const [a,b] of level.gaps){ground.push({x:left,y:floor,w:a-left,h:85});left=b;}
+ ground.push({x:left,y:floor,w:level.end-left,h:85});
+ const logs=level.logs.map(x=>({x,y:floor-33,w:40,h:33}));
+ const ledges=level.logs.map(x=>({x:x-105,y:floor-91,w:62,h:13,oneWay:true}));
+ const items=[
+  ...level.logs.map(x=>({x:x+20,y:floor-73,type:0})),
+  ...level.gaps.map(([a,b])=>({x:(a+b)/2,y:floor-108,type:1})),
+  ...ledges.map(({x,y,w})=>({x:x+w/2,y:y-21,type:2}))
+ ];
+ return {...level,ground,logs,ledges,solids:[...ground,...logs,...ledges],items,goal:level.end-100};
 }
-const directions=[[1,0],[-1,0],[0,1],[0,-1]];
-function reachable(m){
- const queue=[start(m)], seen=new Set(queue.map(String));
- for(let i=0;i<queue.length;i++){
-  const [x,y]=queue[i];
-  if(String([x,y])===String(home(m)))return true;
-  for(const [dx,dy] of directions)for(const jump of [false,true]){
-   const next=move(m,x,y,dx,dy,jump);
-   if(next&&!seen.has(String(next))){seen.add(String(next));queue.push(next);}
-  }
+function player(x=60){return {x,y:floor-32,w:34,h:32,vx:0,vy:0,grounded:true,face:1,phase:0,coyote:0};}
+const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+function step(p,m,dir,buffer){
+ p.vx=dir*speed;
+ if(dir){p.face=dir;p.phase+=.27;}
+ if(p.grounded)p.coyote=6;
+ if(buffer&&p.coyote>0){p.vy=jumpSpeed;p.grounded=false;p.coyote=0;buffer=0;}
+ p.x=Math.max(0,Math.min(m.end-p.w,p.x+p.vx));
+ if(dir)for(const s of m.solids)if(!s.oneWay&&overlap(p,s))p.x=dir>0?s.x-p.w:s.x+s.w;
+ const previousBottom=p.y+p.h;
+ p.vy+=gravity;p.y+=p.vy;p.grounded=false;
+ for(const s of m.solids){
+  if(!overlap(p,s)||(s.oneWay&&(p.vy<0||previousBottom>s.y)))continue;
+  if(p.vy>=0){p.y=s.y-p.h;p.grounded=true;}
+  else p.y=s.y+s.h;
+  p.vy=0;
  }
- return false;
+ if(!p.grounded)p.coyote=Math.max(0,p.coyote-1);
+ return Math.max(0,buffer-1);
 }
 
-const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');
-const status=document.querySelector('#status'),next=document.querySelector('#next');
-const select=document.querySelector('select');
-let level=0,m,x,y,fx=1,fy=0,animation=null,won=false;
-maps.forEach(({name},i)=>select.add(new Option(name,i)));
+const canvas=document.querySelector('canvas'), ctx=canvas.getContext('2d');
+const select=document.querySelector('select'), status=document.querySelector('#status'), next=document.querySelector('#next');
+const tally=[...document.querySelectorAll('[data-count]')], progress=document.querySelector('progress');
+const labels=['Kosti','Míčky','Tlapky'], colors=['#fff0bb','#ef9851','#e5b2f6'];
+let level=0,m,p,counts,checkpoint,buffer=0,won=false;
+const keys=new Set(), pointers=new Map();
+levels.forEach(({name},i)=>select.add(new Option(name,i)));
+function updateCounts(){tally.forEach((node,i)=>node.textContent=labels[i]+' '+counts[i]);}
 function reset(i){
- level=i;m=maps[i];[x,y]=start(m);fx=1;fy=0;won=false;animation=null;
- select.value=i;next.hidden=true;status.textContent='Doveď Fíbí k domečku na pravé straně mapy.';
+ level=i;m=build(levels[i]);p=player();checkpoint=p.x;counts=[0,0,0];buffer=0;won=false;
+ select.value=i;progress.value=0;next.hidden=true;status.textContent='Dostaň se k domečku a cestou sbírej předměty.';updateCounts();
 }
-function act(dx,dy,jump=false){
- if(animation||won)return;
- [fx,fy]=[dx,dy];
- const target=move(m,x,y,dx,dy,jump);
- if(!target){
-  status.textContent=jump?'Tady není bezpečné místo k doskoku. Hledej průchod.':'U vody nebo klády se otoč k překážce a stiskni Skok.';
+function tick(){
+ if(won)return;
+ const held=[...pointers.values()];
+ const dir=Number(keys.has('ArrowRight')||keys.has('KeyD')||held.includes(1))-Number(keys.has('ArrowLeft')||keys.has('KeyA')||held.includes(-1));
+ buffer=step(p,m,dir,buffer);
+ if(p.y>440){p=player(checkpoint);buffer=0;status.textContent='Fíbí se vrátila na břeh. Zkus skočit znovu.';return;}
+ for(const [a,b] of m.gaps)if(p.grounded&&p.y+p.h===floor&&p.x>=b&&p.x<b+115)checkpoint=Math.max(checkpoint,b+8);
+ for(const item of m.items){
+  if(!item.taken&&overlap(p,{x:item.x-12,y:item.y-12,w:24,h:24})){
+   item.taken=true;counts[item.type]++;updateCounts();
+  }
+ }
+ progress.value=Math.max(0,Math.min(1,p.x/m.goal));
+ if(p.x+p.w>=m.goal&&p.y+p.h>=floor-8){
+  won=true;status.textContent=level===levels.length-1?'Fíbí je doma!':'Fíbí dorazila k domečku!';
+  next.hidden=level===levels.length-1;
+ }
+}
+function ellipse(x,y,rx,ry,fill){
+ ctx.fillStyle=fill;ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill();
+}
+function line(points,color,width){
+ ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(...points[0]);
+ for(const point of points.slice(1))ctx.lineTo(...point);
+ ctx.stroke();
+}
+function drawDog(now){
+ const gait=p.grounded&&p.vx?Math.sin(p.phase):0;
+ const bob=p.grounded?(p.vx?Math.abs(gait)*2:Math.sin(now/220)):-3;
+ ctx.save();ctx.translate(p.x+p.w/2,p.y+17-bob);ctx.scale(p.face,1);
+ line([[-14,0],[-22,-5],[-25,-12+Math.sin(now/70)*4]],'#49322c',5);
+ for(const [i,x] of [-12,-6,6,11].entries()){
+  const swing=p.grounded?gait*(i%2?5:-5):(i<2?5:-5);
+  line([[x,5],[x+swing,12],[x+swing+2,p.grounded?15:10]],i%2?'#ddab77':'#a87956',5);
+ }
+ ellipse(-3,0,16,9,'#e0ac75');
+ ellipse(-7,-3,11,6,'#624637');
+ ellipse(12,-7,10,10,'#d39b67');
+ ctx.save();ctx.translate(8,-9);ctx.rotate(gait*.22-.25);ellipse(-2,4,4,8,'#52382e');ctx.restore();
+ ellipse(19,-4,6,4,'#eed1a5');ellipse(23,-5,2.7,2.5,'#382b29');ellipse(15,-10,1.4,1.7,'#302420');
+ line([[8,-1],[11,4]],'#ef714e',3);ctx.restore();
+}
+function drawItem(item,now){
+ const {x,type}=item,y=item.y+Math.sin(now/180+x)*3;
+ if(type===1){ellipse(x,y,9,9,colors[type]);ellipse(x-3,y-3,3,3,'#ffd9a7');return;}
+ if(type===0){
+  line([[x-6,y+5],[x+6,y-5]],colors[type],6);
+  for(const [a,b] of [[-8,3],[-5,7],[5,-7],[8,-3]])ellipse(x+a,y+b,3.3,3.3,colors[type]);
   return;
  }
- animation={from:[x,y],to:target,time:performance.now(),duration:jump?280:90,jump};
- status.textContent='';
+ ellipse(x,y+3,5,4,colors[type]);for(const [a,b] of [[-6,-1],[-3,-5],[3,-5],[6,-1]])ellipse(x+a,y+b,2,2.8,colors[type]);
 }
-const tileSize=44;
-function paint(now){
- let px=x,py=y,lift=0;
- if(animation){
-  const {from,to,time,duration,jump}=animation;
-  const t=Math.min(1,(now-time)/duration);
-  px=from[0]+(to[0]-from[0])*t;py=from[1]+(to[1]-from[1])*t;
-  if(jump)lift=Math.sin(Math.PI*t)*28;
-  if(t===1){
-   [x,y]=to;animation=null;
-   if(String([x,y])===String(home(m))){
-    won=true;status.textContent=level===maps.length-1?'Fíbí je doma! Dokončil jsi poslední mapu.':'Fíbí dorazila domů!';
-    next.hidden=level===maps.length-1;
-   }
-  }
+function render(now){
+ const w=canvas.clientWidth,h=canvas.clientHeight,dpr=Math.min(2,devicePixelRatio||1);
+ const width=Math.round(w*dpr),height=Math.round(h*dpr);
+ if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
+ const scale=h/420, view=w/scale, camera=Math.max(0,Math.min(m.end-view,p.x-view*.32));
+ ctx.setTransform(dpr*scale,0,0,dpr*scale,0,0);
+ ctx.fillStyle=m.sky;ctx.fillRect(0,0,view,420);
+ ellipse(view*.80,75,26,26,'#fff1bb');
+ for(let i=-1;i<Math.ceil(view/220)+2;i++){
+  const x=i*220-(camera*.24)%220;
+  ellipse(x,335,155,115,m.hill);ellipse(x+100,365,135,86,'#699b7299');
  }
- const w=Math.round(canvas.clientWidth),h=Math.round(canvas.clientHeight),ratio=Math.min(devicePixelRatio||1,2);
- if(canvas.width!==Math.round(w*ratio)||canvas.height!==Math.round(h*ratio)){
-  canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);
+ if(level===1)for(let i=-1;i<Math.ceil(view/92)+2;i++){
+  const x=i*92-(camera*.4)%92;line([[x,345],[x,227]],'#4f7764',7);
+  ellipse(x,245,24,64,'#527f71');
  }
- ctx.setTransform(ratio,0,0,ratio,0,0);
- const size=tileSize;
- const camera=(p,view,length)=>Math.max(0,Math.min(length*size-view,(p+.5)*size-view/2));
- const cx=camera(px,w,m.width),cy=camera(py,h,m.height);
- ctx.fillStyle=m.colors[0];ctx.fillRect(0,0,w,h);
- ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='26px sans-serif';
- const [hx,hy]=home(m);
- for(let row=Math.floor(cy/size);row<Math.min(m.height,(cy+h)/size);row++){
-  for(let col=Math.floor(cx/size);col<Math.min(m.width,(cx+w)/size);col++){
-   const a=col*size-cx,b=row*size-cy,type=cell(m,col,row);
-   ctx.fillStyle=type==='water'?'#4a9ec3':type==='rock'?'#435b43':m.colors[(col+row)%2];
-   ctx.fillRect(a,b,size+1,size+1);
-   if(type==='rock')ctx.fillText('🌲',a+22,b+23);
-   if(type==='log')ctx.fillText('🪵',a+22,b+23);
-   if(type==='water'){ctx.fillStyle='#91d4eb';ctx.fillRect(a+8,b+15,15,2);ctx.fillRect(a+20,b+28,15,2);}
-   if(col===hx&&row===hy)ctx.fillText('🏡',a+22,b+22);
-  }
+ ctx.save();ctx.translate(-camera,0);
+ for(const [a,b] of m.gaps){
+  ctx.fillStyle='#438fae';ctx.fillRect(a,floor+13,b-a,65);
+  for(let x=a+7;x<b-12;x+=24)line([[x,floor+23+Math.sin(now/210+x)*2],[x+9,floor+23+Math.sin(now/210+x)*2]],'#a4e0eb',2);
  }
- const dogX=(px+.5)*size-cx,dogY=(py+.5)*size-cy;
- ctx.fillStyle='#0005';ctx.beginPath();ctx.ellipse(dogX,dogY+13,14,5,0,0,7);ctx.fill();
- ctx.save();ctx.translate(dogX,dogY-lift);ctx.scale(fx>0?-1:1,1);
- ctx.font='32px sans-serif';ctx.fillText('🐕',0,0);ctx.restore();
- document.querySelector('progress').value=x/(m.width-3);
- requestAnimationFrame(paint);
+ for(const s of [...m.ground,...m.ledges]){
+  ctx.fillStyle='#675441';ctx.fillRect(s.x,s.y,s.w,s.h);
+  ctx.fillStyle=m.land;ctx.fillRect(s.x,s.y,s.w,7);
+ }
+ for(const s of m.logs){ctx.fillStyle='#875838';ctx.fillRect(s.x,s.y+2,s.w-8,s.h-2);ellipse(s.x+s.w-9,s.y+17,9,16,'#bb8b5a');ellipse(s.x+s.w-9,s.y+17,4,9,'#9a6946');}
+ for(const item of m.items)if(!item.taken&&item.x>=camera-20&&item.x<=camera+view+20)drawItem(item,now);
+ const x=m.goal;
+ ctx.fillStyle='#f4d9a3';ctx.fillRect(x,floor-59,67,59);
+ ctx.fillStyle='#b45c4b';ctx.beginPath();ctx.moveTo(x-9,floor-58);ctx.lineTo(x+34,floor-94);ctx.lineTo(x+76,floor-58);ctx.fill();
+ ctx.fillStyle='#554737';ctx.fillRect(x+12,floor-35,23,35);ctx.fillStyle='#91cbd4';ctx.fillRect(x+43,floor-43,15,17);
+ drawDog(now);ctx.restore();
 }
-const keys={ArrowRight:[1,0],ArrowLeft:[-1,0],ArrowUp:[0,-1],ArrowDown:[0,1],d:[1,0],a:[-1,0],w:[0,-1],s:[0,1]};
+let last=0,acc=0;
+function frame(now){
+ if(last)acc+=Math.min(65,now-last);
+ last=now;
+ while(acc>=1000/60){tick();acc-=1000/60;}
+ render(now);requestAnimationFrame(frame);
+}
+const movement=['ArrowLeft','ArrowRight','KeyA','KeyD'], jumpKeys=['Space','ArrowUp','KeyW'];
 document.addEventListener('keydown',e=>{
- if(e.target.closest('select,button')&&(e.key===' '||e.key.startsWith('Arrow')))return;
- const dir=keys[e.key.toLowerCase()]||keys[e.key];
- if(dir){e.preventDefault();act(...dir,e.shiftKey);}
- if(e.code==='Space'){e.preventDefault();if(!e.repeat)act(fx,fy,true);}
+ if(e.target.closest('select,button')&&(e.code==='Space'||e.code.startsWith('Arrow')))return;
+ if(movement.includes(e.code)){e.preventDefault();keys.add(e.code);}
+ if(jumpKeys.includes(e.code)){e.preventDefault();if(!e.repeat)buffer=9;}
 });
+document.addEventListener('keyup',e=>keys.delete(e.code));
+window.addEventListener('blur',()=>{keys.clear();pointers.clear();buffer=0;});
 for(const button of document.querySelectorAll('[data-dir]')){
- const dir=button.dataset.dir.split(',').map(Number);
- let timer;
- const stop=()=>clearInterval(timer);
- button.addEventListener('pointerdown',e=>{
-  e.preventDefault();button.setPointerCapture(e.pointerId);act(...dir);timer=setInterval(()=>act(...dir),100);
- });
- for(const event of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(event,stop);
- button.addEventListener('click',e=>{if(e.detail===0)act(...dir);});
+ button.onpointerdown=e=>{e.preventDefault();button.setPointerCapture(e.pointerId);pointers.set(e.pointerId,Number(button.dataset.dir));};
+ for(const event of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(event,e=>pointers.delete(e.pointerId));
 }
-document.querySelector('#jump').onclick=()=>act(fx,fy,true);
+const jump=document.querySelector('#jump');
+jump.onpointerdown=e=>{e.preventDefault();buffer=9;};
+jump.onclick=e=>{if(e.detail===0)buffer=9;};
 document.querySelector('#reset').onclick=()=>reset(level);
 next.onclick=()=>reset(level+1);
 select.onchange=()=>reset(Number(select.value));
-reset(0);requestAnimationFrame(paint);
+reset(0);requestAnimationFrame(frame);
 </script></body></html>
