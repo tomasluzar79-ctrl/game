@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fíbí hledá cestu domů</title><style>
 *{box-sizing:border-box}body{margin:0;background:#f0f3e8;color:#243925;font:1rem system-ui,sans-serif}main{max-width:1080px;margin:auto;padding:clamp(12px,3vw,28px)}h1{font-size:clamp(1.45rem,4vw,2.4rem);margin:0 0 12px}header,.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}button,select{font:inherit;color:inherit;background:#fff;border:1px solid #83977a;border-radius:9px;padding:9px 13px;min-height:42px;touch-action:manipulation}button:active{background:#d7e3cc}canvas{display:block;width:100%;height:clamp(225px,48dvh,570px);background:#88ac59;border-radius:14px}progress{width:100%;accent-color:#517749}#status{min-height:2.5em;margin:8px 0}.pad{display:grid;grid-template-columns:repeat(3,48px);gap:4px;touch-action:none}.pad button:first-child{grid-column:2}.pad button:nth-child(2){grid-column:1}#jump{background:#2d5b39;color:white;min-width:100px}.hint{margin:8px 0;color:#465d48}
-[data-dir],#jump{touch-action:none;user-select:none;min-width:64px} [data-count]{border-radius:6px;background:#e0e8d5;padding:5px 8px}#lives{background:#ffe2d9;border-radius:6px;padding:5px 8px}#shoot{touch-action:manipulation}#shoot:disabled{opacity:.55}</style></head><body><main><h1>Fíbí hledá cestu domů</h1><header><label>Mapa <select></select></label><button id="reset">Restart</button><button id="next" hidden>Další mapa</button><span id="lives" aria-label="Počet životů"></span><span data-count></span><span data-count></span><span data-count></span></header><progress aria-label="Postup po mapě" max="1" value="0"></progress><canvas aria-label="Herní mapa Fíbí"></canvas><p id="status" role="status"></p><div class="controls"><button data-dir="-1" aria-label="Vlevo">◀</button><button data-dir="1" aria-label="Vpravo">▶</button><button id="jump">Skok</button><button id="shoot">Vystřelit kost</button><p class="hint">Šipky vlevo a vpravo nebo A / D pro běh. Mezerník pro skok, F pro výstřel.</p></div></main><script>
+[data-dir],#jump{touch-action:none;user-select:none;min-width:64px} [data-count]{border-radius:6px;background:#e0e8d5;padding:5px 8px}#lives{background:#ffe2d9;border-radius:6px;padding:5px 8px}#shoot{touch-action:manipulation}#shoot:disabled{opacity:.55}#dig[aria-pressed="true"]{background:#815b3c;color:white}#dig-hint{margin:8px 0;color:#684729}</style></head><body><main><h1>Fíbí hledá cestu domů</h1><header><label>Mapa <select></select></label><button id="reset">Restart</button><button id="next" hidden>Další mapa</button><span id="lives" aria-label="Počet životů"></span><span data-count></span><span data-count></span><span data-count></span></header><progress aria-label="Postup po mapě" max="1" value="0"></progress><canvas aria-label="Herní mapa Fíbí"></canvas><p id="status" role="status"></p><div class="controls"><button data-dir="-1" aria-label="Vlevo">◀</button><button data-dir="1" aria-label="Vpravo">▶</button><button id="jump">Skok</button><button id="shoot">Vystřelit kost</button><button id="dig" aria-pressed="false">Kopat</button><p class="hint">Šipky vlevo a vpravo nebo A / D pro běh. Mezerník pro skok, F pro výstřel.</p></div><p id="dig-hint" hidden>U tohoto kopce můžeš kopat. Drž E a šipku do kopce. Na dotyku zapni Kopat a drž směr.</p></main><script>
 const levels=[
- {name:'Zahrady',theme:'garden',sky:'#a6ddf3',hill:'#85bd85',land:'#508348',end:4680,gaps:[[510,625],[1190,1330],[2060,2200],[2850,2975],[3790,3935]],logs:[345,925,1510,1860,2480,2680,3260,3540,4250]},
- {name:'Les',theme:'forest',sky:'#b8ded3',hill:'#69a894',land:'#356c52',end:6040,gaps:[[580,715],[1220,1375],[1980,2125],[2870,3035],[3720,3860],[4630,4785],[5390,5535]],logs:[390,960,1660,2400,2630,3330,3520,4180,4420,5110,5800]},
- {name:'Podél řeky',theme:'river',sky:'#a8d9ed',hill:'#7da9b2',land:'#367b65',end:7480,gaps:[[540,690],[1260,1420],[2000,2170],[2890,3060],[3830,4005],[4740,4900],[5550,5710],[6460,6625]],logs:[330,970,1730,2550,3390,4260,4450,5210,6030,6250,6890,7200]}
+ {name:'Zahrady',hills:[[80,275,48],[1370,1485,38],[3030,3200,68,true],[3960,4190,76]],sky:'#a6ddf3',hill:'#85bd85',land:'#508348',end:4680,gaps:[[510,625],[1190,1330],[2060,2200],[2850,2975],[3790,3935]],logs:[345,925,1510,1860,2480,2680,3260,3540,4250]},
+ {name:'Les',hills:[[100,335,65,true],[1420,1620,81],[3090,3280,60],[4820,5070,94,true],[5565,5745,52]],sky:'#b8ded3',hill:'#69a894',land:'#356c52',end:6040,gaps:[[580,715],[1220,1375],[1980,2125],[2870,3035],[3720,3860],[4630,4785],[5390,5535]],logs:[390,960,1660,2400,2630,3330,3520,4180,4420,5110,5800]},
+ {name:'Podél řeky',hills:[[85,285,54],[705,910,75,true],[2210,2490,95],[3090,3300,72],[4040,4220,60],[4955,5175,88,true],[5755,5980,100],[6655,6845,56]],sky:'#a8d9ed',hill:'#7da9b2',land:'#367b65',end:7480,gaps:[[540,690],[1260,1420],[2000,2170],[2890,3060],[3830,4005],[4740,4900],[5550,5710],[6460,6625]],logs:[330,970,1730,2550,3390,4260,4450,5210,6030,6250,6890,7200]}
 ];
 const floor=345, speed=5.5, gravity=.57, jumpSpeed=-12.8;
 function build(level){
@@ -13,46 +13,58 @@ function build(level){
  for(const [a,b] of level.gaps){ground.push({x:left,y:floor,w:a-left,h:85});left=b;}
  ground.push({x:left,y:floor,w:level.end-left,h:85});
  const logs=level.logs.map(x=>({x,y:floor-33,w:40,h:33}));
- const balconyHeights={garden:[52,76,92],forest:[83,57,97],river:[66,95,58]};
- const balconies=logs.flatMap((log,i)=>{
-  const bank=ground.find(s=>log.x>=s.x&&log.x<s.x+s.w);
-  const right=log.x-34;
-  const x=Math.max(bank.x+18,right-[86,112,64][i%3]);
-  if(right-x<46)return [];
-  return [{x,y:floor-balconyHeights[level.theme][i%3],w:right-x,h:12,oneWay:true}];
- });
+ const hills=level.hills.map(([left,right,height,diggable=false])=>({left,right,height,diggable,dugFromLeft:left,dugFromRight:right}));
  const items=[
   ...level.logs.map(x=>({x:x+20,y:floor-73,type:0})),
   ...level.gaps.map(([a,b])=>({x:(a+b)/2,y:floor-108,type:1})),
-  ...balconies.map(({x,y,w})=>({x:x+w/2,y:y-21,type:2}))
+  ...hills.map(({left,right,height})=>({x:(left+right)/2,y:floor-height-24,type:2}))
  ];
  let catIndex=0;
  const enemies=ground.flatMap(({x,w})=>{
   const patrols=[];
   for(let at=x+158;at+64<x+w&&at<level.end-220;at+=145){
    if(logs.some(log=>at+64>log.x-12&&at-32<log.x+log.w+12))continue;
+   if(hills.some(s=>at+64>s.left-14&&at-32<s.right+14))continue;
    patrols.push({x:at,lo:at-32,hi:at+32,y:floor-25,w:32,h:25,dir:1,dead:false,coat:catIndex++%5});
   }
   return patrols;
  });
- return {...level,ground,logs,balconies,enemies,solids:[...ground,...logs,...balconies],items,goal:level.end-100};
+ return {...level,ground,logs,hills,enemies,solids:[...ground,...logs],items,goal:level.end-100};
 }
 function player(x=60){return {x,y:floor-32,w:34,h:32,vx:0,vy:0,grounded:true,face:1,phase:0,coyote:0,rest:0};}
 const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+function slope(hill,x){
+ const t=Math.max(0,Math.min(1,(x-hill.left)/(hill.right-hill.left)));
+ return floor-hill.height*Math.sin(Math.PI*t)**2;
+}
+function hillSurface(m,x){
+ const hill=m.hills.find(s=>x>s.left&&x<s.right);
+ return hill?slope(hill,x):floor;
+}
 function step(p,m,dir,buffer){
+ const oldSurface=hillSurface(m,p.x+p.w/2);
+ const walkingOnGround=p.grounded&&Math.abs(p.y+p.h-oldSurface)<.01;
  p.vx=dir*speed;
  if(dir){p.face=dir;p.phase+=.27;}
  if(p.grounded)p.coyote=6;
  if(buffer&&p.coyote>0){p.vy=jumpSpeed;p.grounded=false;p.coyote=0;buffer=0;}
  p.x=Math.max(0,Math.min(m.end-p.w,p.x+p.vx));
- if(dir)for(const s of m.solids)if(!s.oneWay&&overlap(p,s))p.x=dir>0?s.x-p.w:s.x+s.w;
+ if(dir)for(const s of m.solids)if(overlap(p,s))p.x=dir>0?s.x-p.w:s.x+s.w;
  const previousBottom=p.y+p.h;
  p.vy+=gravity;p.y+=p.vy;p.grounded=false;
  for(const s of m.solids){
-  if(!overlap(p,s)||(s.oneWay&&(p.vy<0||previousBottom>s.y)))continue;
+  if(!overlap(p,s))continue;
   if(p.vy>=0){p.y=s.y-p.h;p.grounded=true;}
   else p.y=s.y+s.h;
   p.vy=0;
+ }
+ const surface=hillSurface(m,p.x+p.w/2);
+ const onSlope=surface<floor||oldSurface<floor;
+ if(onSlope&&p.y+p.h>=surface&&(walkingOnGround&&p.vy>=0||previousBottom<=oldSurface+.01)){
+  p.y=surface-p.h;p.vy=0;p.grounded=true;
+ }
+ if(onSlope&&walkingOnGround&&p.vy>=0&&!p.grounded){
+  p.y=surface-p.h;p.vy=0;p.grounded=true;
  }
  if(!p.grounded)p.coyote=Math.max(0,p.coyote-1);
  return Math.max(0,buffer-1);
@@ -63,8 +75,13 @@ const select=document.querySelector('select'), status=document.querySelector('#s
 const tally=[...document.querySelectorAll('[data-count]')], progress=document.querySelector('progress');
 const labels=['Kosti k vystřelení','Míčky','Tlapky'], colors=['#fff0bb','#ef9851','#e5b2f6'];
 const lifeLimit=3;
-const lifeCounter=document.querySelector('#lives'), shoot=document.querySelector('#shoot');
+const lifeCounter=document.querySelector('#lives'), shoot=document.querySelector('#shoot'), digButton=document.querySelector('#dig');
 let level=0,m,p,counts,checkpoint,lives,shots,buffer=0,immunity=0,won=false;
+const digHint=document.querySelector('#dig-hint');
+let tunnel=null, dirt=[], digArmed=false, digClock=0;
+function setDigArmed(value){
+ digArmed=value;digButton.setAttribute('aria-pressed',String(value));
+}
 const keys=new Set(), pointers=new Map();
 levels.forEach(({name},i)=>select.add(new Option(name,i)));
 function updateCounts(){
@@ -74,6 +91,7 @@ function updateCounts(){
 }
 function reset(i){
  level=i;m=build(levels[i]);p=player();checkpoint=p.x;counts=[0,0,0];lives=lifeLimit;shots=[];buffer=0;immunity=0;won=false;
+ tunnel=null;dirt=[];digClock=0;setDigArmed(false);digButton.disabled=false;digHint.hidden=true;
  select.value=i;progress.value=0;next.hidden=true;status.textContent='Doběhni k domečku. Kočky zaženeš skokem shora nebo vystřelenou kostí.';updateCounts();
 }
 function enemyContact(p,enemy,previousBottom,wasFalling){
@@ -81,7 +99,7 @@ function enemyContact(p,enemy,previousBottom,wasFalling){
  return wasFalling&&previousBottom<=enemy.y+2?'stomp':'hit';
 }
 function fireBone(){
- if(won||lives===0||counts[0]===0)return;
+ if(won||lives===0||counts[0]===0||tunnel)return;
  counts[0]--;
  const center=p.x+p.w/2;
  shots.push({x:center+(p.face>0?30:-44),y:p.y+4,w:14,h:9,vx:p.face*10,vy:.65,time:65});
@@ -90,7 +108,7 @@ function fireBone(){
 function advanceBones(){
  shots=shots.filter(bone=>{
   bone.x+=bone.vx;bone.y+=bone.vy;bone.time--;
-  if(bone.time<=0||bone.x+bone.w<0||bone.x>m.end||m.solids.some(s=>!s.oneWay&&overlap(bone,s)))return false;
+  if(bone.time<=0||bone.x+bone.w<0||bone.x>m.end||bone.y+bone.h>hillSurface(m,bone.x+bone.w/2)||m.solids.some(s=>overlap(bone,s)))return false;
   const victim=m.enemies.find(enemy=>!enemy.dead&&overlap(bone,enemy));
   if(!victim)return true;
   victim.dead=true;
@@ -107,16 +125,60 @@ function loseLife(reason){
  immunity=75;
  status.textContent=reason;
 }
+function nearbyTunnel(){
+ if(!p.grounded||p.y+p.h<floor-4)return null;
+ const x=p.x+p.w/2;
+ return m.hills.find(s=>s.diggable&&(Math.abs(x-s.left)<=16||Math.abs(x-s.right)<=16));
+}
+function advanceTunnel(dir){
+ p.rest=0;p.grounded=true;p.vy=0;p.vx=0;buffer=0;
+ if(!dir||!keys.has('KeyE')&&!digArmed)return;
+ p.face=dir;
+ p.x+=dir*2.65;
+ p.vx=dir*2.65;
+ digClock++;
+ const x=p.x+p.w/2;
+ if(tunnel.side===1)tunnel.hill.dugFromLeft=Math.max(tunnel.hill.dugFromLeft,Math.min(x,tunnel.hill.right));
+ else tunnel.hill.dugFromRight=Math.min(tunnel.hill.dugFromRight,Math.max(x,tunnel.hill.left));
+ if(digClock%2===0){
+  for(let i=0;i<3;i++){
+   dirt.push({x:x+dir*(16+i*4),y:floor-5,vx:-dir*(1+Math.random()*3),vy:-1-Math.random()*4,life:24+Math.random()*12,size:1+Math.random()*2.5});
+  }
+ }
+ progress.value=Math.max(0,Math.min(1,p.x/m.goal));
+ if(x<tunnel.hill.left-7||x>tunnel.hill.right+7){
+  const crossed=dir===tunnel.side;
+  tunnel=null;setDigArmed(false);
+  status.textContent=crossed?'Fíbí se prohrabala na druhou stranu.':'Fíbí se vrátila před kopec.';
+ }
+}
 function tick(){
  if(won||lives===0)return;
  immunity=Math.max(0,immunity-1);
  advanceBones();
+ dirt=dirt.filter(bit=>{
+  bit.x+=bit.vx;bit.y+=bit.vy;bit.vy+=.26;bit.life--;
+  return bit.life>0&&bit.y<floor+8;
+ });
  const held=[...pointers.values()];
  const dir=Number(keys.has('ArrowRight')||keys.has('KeyD')||held.includes(1))-Number(keys.has('ArrowLeft')||keys.has('KeyA')||held.includes(-1));
+ if(tunnel){advanceTunnel(dir);return;}
+ const entrance=nearbyTunnel();
+ digHint.hidden=!entrance;
+ if(entrance&&dir&&(keys.has('KeyE')||digArmed)){
+  const x=p.x+p.w/2;
+  const side=x<(entrance.left+entrance.right)/2?1:-1;
+  if(dir===side){
+   tunnel={hill:entrance,side};
+   p.y=floor-p.h;
+   status.textContent='Fíbí hrabe. Drž E a šipku. Na dotyku zapni Kopat a drž směr.';
+   advanceTunnel(dir);return;
+  }
+ }
  const previousBottom=p.y+p.h;
  const wasFalling=p.vy>0;
  buffer=step(p,m,dir,buffer);
- p.rest=p.grounded&&dir===0?Math.min(18,p.rest+1):0;
+ p.rest=p.grounded&&dir===0?Math.min(30,p.rest+1):Math.max(0,p.rest-6);
  for(const enemy of m.enemies){
   if(enemy.dead)continue;
   enemy.x+=enemy.dir*(1+level*.25);
@@ -139,7 +201,7 @@ function tick(){
  }
  progress.value=Math.max(0,Math.min(1,p.x/m.goal));
  if(p.x+p.w>=m.goal&&p.y+p.h>=floor-8){
-  p.vx=0;p.rest=p.grounded?18:0;
+  p.vx=0;p.rest=p.grounded?30:0;
   won=true;updateCounts();status.textContent=level===levels.length-1?'Fíbí je doma!':'Fíbí dorazila k domečku!';
   next.hidden=level===levels.length-1;
  }
@@ -183,23 +245,25 @@ function drawEnemy(enemy,now){
  ctx.restore();
 }
 function drawDog(now){
- const running=p.grounded&&p.vx!==0;
+ const digging=Boolean(tunnel);
+ const running=!digging&&p.grounded&&p.vx!==0;
  const bob=running?Math.abs(Math.sin(p.phase))*2.6:Math.sin(now/340)*.45;
  const rising=p.vy<0;
- const sit=p.grounded?Math.max(0,(p.rest-8)/10):0;
- const sitting=sit>=1;
+ const seat=p.grounded&&!digging?Math.max(0,(p.rest-8)/22):0;
+ const sit=seat*seat*(3-2*seat);
+ const sitting=seat>=1&&p.vx===0;
  const shape=(path,fill,outline='#514034',width=.85)=>{
   const outlinePath=new Path2D(path);
   ctx.fillStyle=fill;ctx.fill(outlinePath);
   if(outline){ctx.strokeStyle=outline;ctx.lineWidth=width;ctx.lineJoin='round';ctx.stroke(outlinePath);}
  };
  const leg=(x,phase,front,far)=>{
-  const stride=running?Math.sin(p.phase+phase):0;
-  const swing=p.grounded?stride*9:(front?(rising?8:3):(rising?-8:-4));
+  const stride=digging&&front&&p.vx?Math.sin(digClock*.7+phase):running?Math.sin(p.phase+phase):0;
+  const swing=p.grounded?stride*(digging?12:9):(front?(rising?8:3):(rising?-8:-4));
   const lift=p.grounded?Math.max(0,Math.cos(p.phase+phase))*(running?5.5:0):(rising?8:4);
-  const knee=x+swing*.54+(front?1:-3);
+  const knee=x+swing*.54+(front?1:-3)+(front?0:9*sit);
   const foot=x+swing;
-  const ankle=18-lift;
+  const ankle=18-lift-(digging&&front?Math.max(0,stride)*6:0);
   shape(
    'M '+(x-3)+' -3 Q '+(x+2)+' -5 '+(x+4)+' 1 L '+(knee+2)+' 8 L '+(foot+2)+' '+(ankle-2)+
    ' Q '+(foot+6)+' '+(ankle-1)+' '+(foot+4)+' '+ankle+' L '+(foot-2)+' '+ankle+
@@ -213,25 +277,26 @@ function drawDog(now){
  ctx.scale(p.face,1);
  ctx.translate(0,-bob*(1-sit));
  if(!p.grounded)ctx.rotate(rising?-.13:.13);
+ if(digging){ctx.translate(0,1);ctx.scale(.88,.70);ctx.rotate(.17);}
  ctx.save();
  ctx.translate(-20,-6+sit*16);ctx.rotate(Math.sin(now/(running?82:135))*(running?.26:.14));
  shape('M 2 -1 C -7 -2 -11 -7 -15 -12 C -17 -14 -19 -12 -17 -9 C -14 -2 -6 4 1 4 Z','#a69683');
  ctx.restore();
  if(sit<1)leg(-15,Math.PI,false,true);
  leg(12,0,true,true);
- ctx.save();ctx.translate(-7*sit,2*sit);ctx.rotate(.48*sit);
+ ctx.save();ctx.translate(-2*sit,5*sit);ctx.rotate(-.42*sit);
  shape('M -23 -3 C -23 -11 -16 -13 -9 -12 C -1 -11 6 -13 12 -16 C 18 -14 20 -4 16 3 C 13 9 5 6 -1 4 C -9 2 -11 7 -17 5 C -22 4 -23 1 -23 -3 Z','#baaa94');
  shape('M -20 -8 C -11 -12 -3 -9 6 -11 C 2 -7 -9 -6 -19 -5 Z','#d9cbb7',null);
  shape('M 8 -10 C 12 -12 15 -15 17 -15 C 20 -11 20 -4 17 2 C 15 7 11 7 8 5 C 12 2 13 -4 8 -10 Z','#f2eee4',null);
  ctx.restore();
  if(sit>0){
-  ellipse(-16,8+sit*3,7+sit*5,4+sit*3,'#a69480');
-  ellipse(-12,11+sit*4,5+sit*2,3,'#cdbba5');
+  ellipse(-16,4+sit*6,7+sit*3,4+sit*3,'#a69480');
+  ellipse(-12,10+sit*5,4+sit*2,2.6,'#cdbba5');
  }
  if(sit<1)leg(-16,0,false,false);
  leg(13,Math.PI,true,false);
  ctx.save();
- ctx.translate(13-4*sit,-12-4*sit);
+ ctx.translate(13-3*sit,-12+sit);
  ctx.rotate(running?Math.sin(p.phase)*.045:Math.sin(now/460)*.035);
  shape('M -6 -1 Q -1 3 6 3 L 6 6 Q -1 7 -8 2 Z','#29353a');
  line([[-5,1],[-3,3]],'#ac735b',1.3);
@@ -268,29 +333,44 @@ function drawItem(item,now){
  }
  ellipse(x,y+3,5,4,colors[type]);for(const [a,b] of [[-6,-1],[-3,-5],[3,-5],[6,-1]])ellipse(x+a,y+b,2,2.8,colors[type]);
 }
-function drawBalcony(s,theme,front){
- const palette={
-  garden:{post:'#a07350',trim:'#d6ac7d',rail:'#b9865d'},
-  forest:{post:'#624137',trim:'#b8895c',rail:'#8e5f46'},
-  river:{post:'#687675',trim:'#c6cebc',rail:'#92a49f'}
- }[theme];
- if(!front){
-  for(const x of [s.x+7,s.x+s.w-12]){
-   ctx.fillStyle=palette.post;ctx.fillRect(x,s.y,5,floor-s.y);
-   ellipse(x+2.5,floor,6,2,'#52463b55');
-  }
-  line([[s.x+9,floor-15],[s.x+s.w-10,s.y+8]],palette.post,3);
-  const postCount=Math.ceil(s.w/19);
-  for(let i=0;i<=postCount;i++){
-   const x=s.x+3+(s.w-6)*i/postCount;
-   line([[x,s.y],[x,s.y-22]],palette.rail,2.8);
-  }
-  line([[s.x+2,s.y-23],[s.x+s.w-2,s.y-23]],palette.trim,4);
-  return;
+function drawHill(hill){
+ const {left,right,height,diggable,dugFromLeft,dugFromRight}=hill;
+ const points=Array.from({length:41},(_,i)=>{
+  const x=left+(right-left)*i/40;
+  return [x,slope(hill,x)];
+ });
+ const soil=ctx.createLinearGradient(0,floor-height,0,floor+1);
+ soil.addColorStop(0,'#a4774c');soil.addColorStop(1,'#675441');
+ ctx.fillStyle=soil;ctx.beginPath();ctx.moveTo(left,floor);
+ for(const point of points)ctx.lineTo(...point);
+ ctx.lineTo(right,floor+7);ctx.lineTo(left,floor+7);ctx.closePath();ctx.fill();
+ for(let x=left+15;x<right-10;x+=14){
+  const top=slope(hill,x), y=top+14+(x%23);
+  if(y<floor-9){ellipse(x,y,2.8,1.4,'#d7a06b80');ellipse(x+8,y+5,1.6,1,'#4e352a80');}
  }
- ctx.fillStyle=palette.post;ctx.fillRect(s.x,s.y,s.w,s.h);
- ctx.fillStyle=palette.trim;ctx.fillRect(s.x,s.y,s.w,3);
- for(let x=s.x+12;x<s.x+s.w-4;x+=16)line([[x,s.y+4],[x,s.y+s.h-2]],palette.rail,1.2);
+ line(points,m.land,8);
+ line(points.map(([x,y])=>[x,y-3]),'#c3d98d',1.8);
+ for(let i=3;i<38;i+=4){
+  const [x,y]=points[i];
+  line([[x-3,y-2],[x-4,y-7],[x,y-3],[x+3,y-8]],m.land,1.3);
+ }
+ if(!diggable)return;
+ ctx.save();
+ ctx.beginPath();ctx.moveTo(left,floor);
+ for(const point of points)ctx.lineTo(...point);
+ ctx.lineTo(right,floor);ctx.lineTo(right,floor+8);ctx.lineTo(left,floor+8);ctx.closePath();ctx.clip();
+ for(const [a,b] of [[left,dugFromLeft],[dugFromRight,right]]){
+  if(b-a<1)continue;
+  line([[a,floor-8],[b,floor-8]],'#bd8959',42);
+  line([[a,floor-8],[b,floor-8]],'#4d392e',34);
+ }
+ ctx.restore();
+ for(const x of [left-12,right+12]){
+  line([[x,floor],[x,floor-27]],'#77583e',2.5);
+  ctx.fillStyle='#e4bb79';ctx.fillRect(x-12,floor-43,24,18);
+  line([[x-4,floor-28],[x+4,floor-39]],'#744a35',2);
+  line([[x-5,floor-36],[x+5,floor-40],[x+8,floor-36]],'#744a35',1.7);
+ }
 }
 function render(now){
  const w=canvas.clientWidth,h=canvas.clientHeight,dpr=Math.min(2,devicePixelRatio||1);
@@ -331,8 +411,7 @@ function render(now){
    }
   }
  }
- const visibleBalconies=m.balconies.filter(s=>s.x+s.w>=camera-30&&s.x<=camera+view+30);
- for(const balcony of visibleBalconies)drawBalcony(balcony,m.theme,false);
+ for(const hill of m.hills)if(hill.right>=camera-30&&hill.left<=camera+view+30)drawHill(hill);
  for(const s of m.logs){ctx.fillStyle='#875838';ctx.fillRect(s.x,s.y+2,s.w-8,s.h-2);ellipse(s.x+s.w-9,s.y+17,9,16,'#bb8b5a');ellipse(s.x+s.w-9,s.y+17,4,9,'#9a6946');}
  for(const item of m.items)if(!item.taken&&item.x>=camera-20&&item.x<=camera+view+20)drawItem(item,now);
  const x=m.goal;
@@ -342,7 +421,7 @@ function render(now){
  for(const enemy of m.enemies)if(!enemy.dead&&enemy.x>=camera-40&&enemy.x<=camera+view+40)drawEnemy(enemy,now);
  for(const bone of shots)drawItem({x:bone.x+bone.w/2,y:bone.y+bone.h/2,type:0},now);
  if(immunity===0||Math.floor(immunity/6)%2===0)drawDog(now);
- for(const balcony of visibleBalconies)drawBalcony(balcony,m.theme,true);
+ for(const bit of dirt)ellipse(bit.x,bit.y,bit.size,bit.size*.76,bit.size>2.2?'#a77346':'#c99a66');
  ctx.restore();
 }
 let last=0,acc=0;
@@ -354,13 +433,16 @@ function frame(now){
 }
 const movement=['ArrowLeft','ArrowRight','KeyA','KeyD'], jumpKeys=['Space','ArrowUp','KeyW'];
 document.addEventListener('keydown',e=>{
- if(e.target.closest('select,button')&&(e.code==='Space'||e.code.startsWith('Arrow')))return;
+ if(e.target.closest('select')&&(e.code==='Space'||e.code.startsWith('Arrow')))return;
+ if(e.target.closest('button')&&e.code==='Space')return;
+ if(e.code==='KeyE'){e.preventDefault();keys.add(e.code);}
  if(e.code==='KeyF'){e.preventDefault();if(!e.repeat)fireBone();}
  if(movement.includes(e.code)){e.preventDefault();keys.add(e.code);}
  if(jumpKeys.includes(e.code)){e.preventDefault();if(!e.repeat)buffer=9;}
 });
 document.addEventListener('keyup',e=>keys.delete(e.code));
-window.addEventListener('blur',()=>{keys.clear();pointers.clear();buffer=0;});
+window.addEventListener('blur',()=>{keys.clear();pointers.clear();buffer=0;setDigArmed(false);});
+digButton.onclick=()=>setDigArmed(!digArmed);
 for(const button of document.querySelectorAll('[data-dir]')){
  button.onpointerdown=e=>{e.preventDefault();button.setPointerCapture(e.pointerId);pointers.set(e.pointerId,Number(button.dataset.dir));};
  for(const event of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(event,e=>pointers.delete(e.pointerId));
