@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fíbí hledá cestu domů</title><style>
+*{box-sizing:border-box}body{margin:0;background:#f0f3e8;color:#243925;font:1rem system-ui,sans-serif}main{max-width:1080px;margin:auto;padding:clamp(12px,3vw,28px)}h1{font-size:clamp(1.45rem,4vw,2.4rem);margin:0 0 12px}header,.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}button,select{font:inherit;color:inherit;background:#fff;border:1px solid #83977a;border-radius:9px;padding:9px 13px;min-height:42px;touch-action:manipulation}button:active{background:#d7e3cc}canvas{display:block;width:100%;height:clamp(225px,48dvh,570px);background:#88ac59;border-radius:14px}progress{width:100%;accent-color:#517749}#status{min-height:2.5em;margin:8px 0}.pad{display:grid;grid-template-columns:repeat(3,48px);gap:4px;touch-action:none}.pad button:first-child{grid-column:2}.pad button:nth-child(2){grid-column:1}#jump{background:#2d5b39;color:white;min-width:100px}.hint{margin:8px 0;color:#465d48}
+</style></head><body><main><h1>Fíbí hledá cestu domů</h1><header><label>Mapa <select></select></label><button id="reset">Restart</button><button id="next" hidden>Další mapa</button></header><progress aria-label="Postup po mapě" max="1" value="0"></progress><canvas aria-label="Herní mapa Fíbí"></canvas><p id="status" role="status"></p><div class="controls"><div class="pad" aria-label="Pohyb"><button data-dir="0,-1" aria-label="Nahoru">↑</button><button data-dir="-1,0" aria-label="Vlevo">←</button><button data-dir="0,1" aria-label="Dolů">↓</button><button data-dir="1,0" aria-label="Vpravo">→</button></div><button id="jump">Skok</button><p class="hint">Šipky nebo WASD pro pohyb. Mezerník pro skok ve směru pohybu.</p></div></main><script>
+const maps=[
+ {name:'Zahrady',width:44,height:17,barriers:[[9,1,4],[18,2,12],[28,1,7],[36,1,13]],colors:['#88ac59','#94b762']},
+ {name:'Les',width:60,height:21,barriers:[[10,2,15],[20,1,5],[31,1,16],[43,2,7],[52,1,14]],colors:['#527c53','#5a8559']},
+ {name:'Podél řeky',width:76,height:25,barriers:[[11,2,5],[22,1,18],[34,2,9],[46,1,19],[57,2,6],[66,1,16]],colors:['#78a17b','#85ad85']}
+];
+const cell=(m,x,y)=>{
+ if(x<0||x>=m.width||y<0||y>=m.height)return 'edge';
+ for(const [left,size,cross] of m.barriers){
+  if(x>=left&&x<left+size)return Math.abs(y-cross)<=1?(size===2?'water':'log'):'rock';
+ }
+ return 'grass';
+};
+const home=m=>[m.width-3,Math.floor(m.height/2)];
+const start=m=>[2,Math.floor(m.height/2)];
+function move(m,x,y,dx,dy,jump){
+ const next=cell(m,x+dx,y+dy);
+ if(!jump)return next==='grass'?[x+dx,y+dy]:null;
+ for(let d=1;d<=3;d++){
+  const tile=cell(m,x+dx*d,y+dy*d);
+  if(tile==='edge'||tile==='rock')return null;
+  if(tile==='grass'&&d>1)return [x+dx*d,y+dy*d];
+ }
+ return null;
+}
+const directions=[[1,0],[-1,0],[0,1],[0,-1]];
+function reachable(m){
+ const queue=[start(m)], seen=new Set(queue.map(String));
+ for(let i=0;i<queue.length;i++){
+  const [x,y]=queue[i];
+  if(String([x,y])===String(home(m)))return true;
+  for(const [dx,dy] of directions)for(const jump of [false,true]){
+   const next=move(m,x,y,dx,dy,jump);
+   if(next&&!seen.has(String(next))){seen.add(String(next));queue.push(next);}
+  }
+ }
+ return false;
+}
+
+const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');
+const status=document.querySelector('#status'),next=document.querySelector('#next');
+const select=document.querySelector('select');
+let level=0,m,x,y,fx=1,fy=0,animation=null,won=false;
+maps.forEach(({name},i)=>select.add(new Option(name,i)));
+function reset(i){
+ level=i;m=maps[i];[x,y]=start(m);fx=1;fy=0;won=false;animation=null;
+ select.value=i;next.hidden=true;status.textContent='Doveď Fíbí k domečku na pravé straně mapy.';
+}
+function act(dx,dy,jump=false){
+ if(animation||won)return;
+ [fx,fy]=[dx,dy];
+ const target=move(m,x,y,dx,dy,jump);
+ if(!target){
+  status.textContent=jump?'Tady není bezpečné místo k doskoku. Hledej průchod.':'U vody nebo klády se otoč k překážce a stiskni Skok.';
+  return;
+ }
+ animation={from:[x,y],to:target,time:performance.now(),duration:jump?280:90,jump};
+ status.textContent='';
+}
+const tileSize=44;
+function paint(now){
+ let px=x,py=y,lift=0;
+ if(animation){
+  const {from,to,time,duration,jump}=animation;
+  const t=Math.min(1,(now-time)/duration);
+  px=from[0]+(to[0]-from[0])*t;py=from[1]+(to[1]-from[1])*t;
+  if(jump)lift=Math.sin(Math.PI*t)*28;
+  if(t===1){
+   [x,y]=to;animation=null;
+   if(String([x,y])===String(home(m))){
+    won=true;status.textContent=level===maps.length-1?'Fíbí je doma! Dokončil jsi poslední mapu.':'Fíbí dorazila domů!';
+    next.hidden=level===maps.length-1;
+   }
+  }
+ }
+ const w=Math.round(canvas.clientWidth),h=Math.round(canvas.clientHeight),ratio=Math.min(devicePixelRatio||1,2);
+ if(canvas.width!==Math.round(w*ratio)||canvas.height!==Math.round(h*ratio)){
+  canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);
+ }
+ ctx.setTransform(ratio,0,0,ratio,0,0);
+ const size=tileSize;
+ const camera=(p,view,length)=>Math.max(0,Math.min(length*size-view,(p+.5)*size-view/2));
+ const cx=camera(px,w,m.width),cy=camera(py,h,m.height);
+ ctx.fillStyle=m.colors[0];ctx.fillRect(0,0,w,h);
+ ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='26px sans-serif';
+ const [hx,hy]=home(m);
+ for(let row=Math.floor(cy/size);row<Math.min(m.height,(cy+h)/size);row++){
+  for(let col=Math.floor(cx/size);col<Math.min(m.width,(cx+w)/size);col++){
+   const a=col*size-cx,b=row*size-cy,type=cell(m,col,row);
+   ctx.fillStyle=type==='water'?'#4a9ec3':type==='rock'?'#435b43':m.colors[(col+row)%2];
+   ctx.fillRect(a,b,size+1,size+1);
+   if(type==='rock')ctx.fillText('🌲',a+22,b+23);
+   if(type==='log')ctx.fillText('🪵',a+22,b+23);
+   if(type==='water'){ctx.fillStyle='#91d4eb';ctx.fillRect(a+8,b+15,15,2);ctx.fillRect(a+20,b+28,15,2);}
+   if(col===hx&&row===hy)ctx.fillText('🏡',a+22,b+22);
+  }
+ }
+ const dogX=(px+.5)*size-cx,dogY=(py+.5)*size-cy;
+ ctx.fillStyle='#0005';ctx.beginPath();ctx.ellipse(dogX,dogY+13,14,5,0,0,7);ctx.fill();
+ ctx.save();ctx.translate(dogX,dogY-lift);ctx.scale(fx>0?-1:1,1);
+ ctx.font='32px sans-serif';ctx.fillText('🐕',0,0);ctx.restore();
+ document.querySelector('progress').value=x/(m.width-3);
+ requestAnimationFrame(paint);
+}
+const keys={ArrowRight:[1,0],ArrowLeft:[-1,0],ArrowUp:[0,-1],ArrowDown:[0,1],d:[1,0],a:[-1,0],w:[0,-1],s:[0,1]};
+document.addEventListener('keydown',e=>{
+ if(e.target.closest('select,button')&&(e.key===' '||e.key.startsWith('Arrow')))return;
+ const dir=keys[e.key.toLowerCase()]||keys[e.key];
+ if(dir){e.preventDefault();act(...dir,e.shiftKey);}
+ if(e.code==='Space'){e.preventDefault();if(!e.repeat)act(fx,fy,true);}
+});
+for(const button of document.querySelectorAll('[data-dir]')){
+ const dir=button.dataset.dir.split(',').map(Number);
+ let timer;
+ const stop=()=>clearInterval(timer);
+ button.addEventListener('pointerdown',e=>{
+  e.preventDefault();button.setPointerCapture(e.pointerId);act(...dir);timer=setInterval(()=>act(...dir),100);
+ });
+ for(const event of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(event,stop);
+ button.addEventListener('click',e=>{if(e.detail===0)act(...dir);});
+}
+document.querySelector('#jump').onclick=()=>act(fx,fy,true);
+document.querySelector('#reset').onclick=()=>reset(level);
+next.onclick=()=>reset(level+1);
+select.onchange=()=>reset(Number(select.value));
+reset(0);requestAnimationFrame(paint);
+</script></body></html>
