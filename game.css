@@ -1,0 +1,106 @@
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { color-scheme: light; }
+body {
+ margin: 0;
+ background: #f0f3e8;
+ color: #243925;
+ font: 1rem system-ui, sans-serif;
+}
+main {
+ max-width: 1080px;
+ margin: auto;
+ padding: clamp(12px, 3vw, 28px);
+}
+h1 { font-size: clamp(1.45rem, 4vw, 2.4rem); margin: 0 0 12px; }
+header, .map-controls, .counters, .controls, .directions, .actions {
+ display: flex;
+ align-items: center;
+ flex-wrap: wrap;
+ gap: 8px;
+}
+button, select {
+ min-height: 42px;
+ padding: 8px 11px;
+ border: 1px solid #83977a;
+ border-radius: 9px;
+ background: #fff;
+ color: inherit;
+ font: inherit;
+ touch-action: manipulation;
+}
+button:active, button.held { background: #d7e3cc; }
+button:disabled { opacity: .55; }
+[data-count], #lives {
+ border-radius: 6px;
+ padding: 5px 8px;
+ background: #e0e8d5;
+ white-space: nowrap;
+}
+#lives { background: #ffe2d9; }
+.stage { position: relative; margin: 8px 0; }
+progress { display: block; width: 100%; height: 8px; accent-color: #517749; }
+canvas {
+ display: block;
+ width: 100%;
+ height: clamp(225px, 48dvh, 570px);
+ border-radius: 12px;
+ background: #88ac59;
+}
+#status, #dig-hint, .hint { margin: 7px 0; }
+#dig-hint { color: #684729; }
+.touch-help { display: none; }
+.directions button, .actions button {
+ min-width: 50px;
+ touch-action: none;
+ user-select: none;
+ -webkit-user-select: none;
+ -webkit-touch-callout: none;
+}
+#jump { background: #2d5b39; border-color: #2d5b39; color: white; font-weight: 650; }
+#jump:active { background: #416d4b; }
+#dig[aria-pressed="true"] { background: #815b3c; color: white; }
+.hint { color: #465d48; }
+
+@media (pointer: coarse), (max-width: 620px) {
+ body { overscroll-behavior: none; }
+ main {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+           max(10px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+ }
+ h1 { margin-bottom: 8px; font-size: clamp(1.2rem, 5vw, 1.65rem); }
+ header { justify-content: space-between; }
+ .map-controls { gap: 5px; }
+ .map-controls button, select { min-height: 44px; font-size: .9rem; }
+ .counters { gap: 4px; font-size: .82rem; }
+ .counters span { padding: 4px 6px; }
+ .stage { margin: auto 0; padding-bottom: 4px; }
+ canvas { height: min(90vw, 47dvh); }
+ #status { min-height: 2.6em; font-size: .9rem; }
+ #dig-hint { position: absolute; inset: auto 8px 4.1em; margin: 0; }
+ #dig-hint span {
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: #fff5df;
+  font-size: .82rem;
+ }
+ .controls { justify-content: space-between; flex-wrap: nowrap; gap: 4px; }
+ .directions, .actions { flex-wrap: nowrap; gap: 4px; }
+ .directions button, .actions button { min-width: 46px; min-height: 56px; padding: 6px; }
+ #jump { min-width: 58px; }
+ .keyboard-help { display: none; }
+ .touch-help { display: inline; }
+}
+
+@media (orientation: landscape) and (max-height: 560px) and (pointer: coarse) {
+ main { height: 100dvh; }
+ h1 { position: absolute; clip-path: inset(50%); height: 1px; width: 1px; overflow: hidden; }
+ .stage { display: flex; flex: 1 0 155px; flex-direction: column; margin: 3px 0; }
+ canvas { flex: 1 0 0; height: 0; min-height: 100px; }
+ #status { min-height: 1.3em; margin: 4px 0 0; }
+ #dig-hint { inset: auto 8px 2em; }
+ .directions button, .actions button { min-width: 64px; min-height: 49px; }
+}

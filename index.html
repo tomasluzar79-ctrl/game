@@ -1,7 +1,50 @@
 <!doctype html>
-<html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fíbí hledá cestu domů</title><style>
-*{box-sizing:border-box}body{margin:0;background:#f0f3e8;color:#243925;font:1rem system-ui,sans-serif}main{max-width:1080px;margin:auto;padding:clamp(12px,3vw,28px)}h1{font-size:clamp(1.45rem,4vw,2.4rem);margin:0 0 12px}header,.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}button,select{font:inherit;color:inherit;background:#fff;border:1px solid #83977a;border-radius:9px;padding:9px 13px;min-height:42px;touch-action:manipulation}button:active{background:#d7e3cc}canvas{display:block;width:100%;height:clamp(225px,48dvh,570px);background:#88ac59;border-radius:14px}progress{width:100%;accent-color:#517749}#status{min-height:2.5em;margin:8px 0}.pad{display:grid;grid-template-columns:repeat(3,48px);gap:4px;touch-action:none}.pad button:first-child{grid-column:2}.pad button:nth-child(2){grid-column:1}#jump{background:#2d5b39;color:white;min-width:100px}.hint{margin:8px 0;color:#465d48}
-[data-dir],#jump{touch-action:none;user-select:none;min-width:64px} [data-count]{border-radius:6px;background:#e0e8d5;padding:5px 8px}#lives{background:#ffe2d9;border-radius:6px;padding:5px 8px}#shoot{touch-action:manipulation}#shoot:disabled{opacity:.55}#dig[aria-pressed="true"]{background:#815b3c;color:white}#dig-hint{margin:8px 0;color:#684729}</style></head><body><main><h1>Fíbí hledá cestu domů</h1><header><label>Mapa <select></select></label><button id="reset">Restart</button><button id="next" hidden>Další mapa</button><span id="lives" aria-label="Počet životů"></span><span data-count></span><span data-count></span><span data-count></span></header><progress aria-label="Postup po mapě" max="1" value="0"></progress><canvas aria-label="Herní mapa Fíbí"></canvas><p id="status" role="status"></p><div class="controls"><button data-dir="-1" aria-label="Vlevo">◀</button><button data-dir="1" aria-label="Vpravo">▶</button><button id="jump">Skok</button><button id="shoot">Vystřelit kost</button><button id="dig" aria-pressed="false">Kopat</button><p class="hint">Šipky vlevo a vpravo nebo A / D pro běh. Mezerník pro skok, F pro výstřel.</p></div><p id="dig-hint" hidden>U tohoto kopce můžeš kopat. Drž E a šipku do kopce. Na dotyku zapni Kopat a drž směr.</p></main><script>
+<html lang="cs">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+ <meta name="theme-color" content="#f0f3e8">
+ <title>Fíbí hledá cestu domů</title>
+ <link rel="manifest" href="./manifest.webmanifest">
+ <link rel="apple-touch-icon" href="./icons/fibi-192.png">
+ <link rel="stylesheet" href="./game.css">
+</head>
+<body>
+ <main>
+  <h1>Fíbí hledá cestu domů</h1>
+  <header>
+   <div class="map-controls">
+    <label>Mapa <select></select></label>
+    <button id="reset">Restart</button>
+    <button id="next" hidden>Další mapa</button>
+   </div>
+   <div class="counters" aria-label="Herní stav">
+    <span id="lives"></span>
+    <span data-count></span>
+    <span data-count></span>
+    <span data-count></span>
+   </div>
+  </header>
+  <div class="stage">
+   <progress aria-label="Postup po mapě" max="1" value="0"></progress>
+   <canvas aria-label="Herní mapa Fíbí"></canvas>
+   <p id="status" role="status"></p>
+   <p id="dig-hint" hidden><span class="keyboard-help">Drž E a šipku do kopce.</span><span class="touch-help">Zapni Kopat a drž směr do kopce.</span></p>
+  </div>
+  <div class="controls">
+   <div class="directions" aria-label="Pohyb">
+    <button data-dir="-1" aria-label="Vlevo">◀</button>
+    <button data-dir="1" aria-label="Vpravo">▶</button>
+   </div>
+   <div class="actions" aria-label="Akce">
+    <button id="dig" aria-pressed="false">Kopat</button>
+    <button id="shoot" aria-label="Vystřelit kost">Kost</button>
+    <button id="jump">Skok</button>
+   </div>
+  </div>
+  <p class="hint keyboard-help">Pohyb šipkami nebo A / D, skok mezerníkem, výstřel klávesou F.</p>
+ </main>
+<script>
 const levels=[
  {name:'Zahrady',hills:[[80,275,48],[1370,1485,38],[3030,3200,68,true],[3960,4190,76]],sky:'#a6ddf3',hill:'#85bd85',land:'#508348',end:4680,gaps:[[510,625],[1190,1330],[2060,2200],[2850,2975],[3790,3935]],logs:[345,925,1510,1860,2480,2680,3260,3540,4250]},
  {name:'Les',hills:[[100,335,65,true],[1420,1620,81],[3090,3280,60],[4820,5070,94,true],[5565,5745,52]],sky:'#b8ded3',hill:'#69a894',land:'#356c52',end:6040,gaps:[[580,715],[1220,1375],[1980,2125],[2870,3035],[3720,3860],[4630,4785],[5390,5535]],logs:[390,960,1660,2400,2630,3330,3520,4180,4420,5110,5800]},
@@ -73,7 +116,7 @@ function step(p,m,dir,buffer){
 const canvas=document.querySelector('canvas'), ctx=canvas.getContext('2d');
 const select=document.querySelector('select'), status=document.querySelector('#status'), next=document.querySelector('#next');
 const tally=[...document.querySelectorAll('[data-count]')], progress=document.querySelector('progress');
-const labels=['Kosti k vystřelení','Míčky','Tlapky'], colors=['#fff0bb','#ef9851','#e5b2f6'];
+const labels=['Kosti','Míčky','Tlapky'], colors=['#fff0bb','#ef9851','#e5b2f6'];
 const lifeLimit=3;
 const lifeCounter=document.querySelector('#lives'), shoot=document.querySelector('#shoot'), digButton=document.querySelector('#dig');
 let level=0,m,p,counts,checkpoint,lives,shots,buffer=0,immunity=0,won=false;
@@ -92,7 +135,7 @@ function updateCounts(){
 function reset(i){
  level=i;m=build(levels[i]);p=player();checkpoint=p.x;counts=[0,0,0];lives=lifeLimit;shots=[];buffer=0;immunity=0;won=false;
  tunnel=null;dirt=[];digClock=0;setDigArmed(false);digButton.disabled=false;digHint.hidden=true;
- select.value=i;progress.value=0;next.hidden=true;status.textContent='Doběhni k domečku. Kočky zaženeš skokem shora nebo vystřelenou kostí.';updateCounts();
+ select.value=i;progress.value=0;next.hidden=true;status.textContent='Doběhni k domečku. Kočky zaženeš skokem shora nebo kostí.';updateCounts();
 }
 function enemyContact(p,enemy,previousBottom,wasFalling){
  if(enemy.dead||!overlap(p,enemy))return '';
@@ -118,7 +161,7 @@ function advanceBones(){
 function loseLife(reason){
  lives--;buffer=0;shots=[];updateCounts();
  if(lives===0){
-  status.textContent='Fíbí došly životy. Tlačítkem Restart zkus mapu znovu.';
+  status.textContent='Fíbí došly životy. Zkus mapu znovu.';
   return;
  }
  p=player(checkpoint);
@@ -160,7 +203,7 @@ function tick(){
   bit.x+=bit.vx;bit.y+=bit.vy;bit.vy+=.26;bit.life--;
   return bit.life>0&&bit.y<floor+8;
  });
- const held=[...pointers.values()];
+ const held=[...pointers.values()].map(button=>Number(button.dataset.dir));
  const dir=Number(keys.has('ArrowRight')||keys.has('KeyD')||held.includes(1))-Number(keys.has('ArrowLeft')||keys.has('KeyA')||held.includes(-1));
  if(tunnel){advanceTunnel(dir);return;}
  const entrance=nearbyTunnel();
@@ -171,7 +214,7 @@ function tick(){
   if(dir===side){
    tunnel={hill:entrance,side};
    p.y=floor-p.h;
-   status.textContent='Fíbí hrabe. Drž E a šipku. Na dotyku zapni Kopat a drž směr.';
+   status.textContent='Fíbí hrabe.';
    advanceTunnel(dir);return;
   }
  }
@@ -441,18 +484,50 @@ document.addEventListener('keydown',e=>{
  if(jumpKeys.includes(e.code)){e.preventDefault();if(!e.repeat)buffer=9;}
 });
 document.addEventListener('keyup',e=>keys.delete(e.code));
-window.addEventListener('blur',()=>{keys.clear();pointers.clear();buffer=0;setDigArmed(false);});
+function releaseControls(){
+ keys.clear();
+ for(const button of pointers.values())button.classList.remove('held');
+ pointers.clear();
+ buffer=0;
+ last=0;
+ acc=0;
+}
+window.addEventListener('blur',releaseControls);
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden)releaseControls();
+});
 digButton.onclick=()=>setDigArmed(!digArmed);
 for(const button of document.querySelectorAll('[data-dir]')){
- button.onpointerdown=e=>{e.preventDefault();button.setPointerCapture(e.pointerId);pointers.set(e.pointerId,Number(button.dataset.dir));};
- for(const event of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(event,e=>pointers.delete(e.pointerId));
+ button.onpointerdown=e=>{
+  if(e.button!==0)return;
+  e.preventDefault();
+  button.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,button);
+  button.classList.add('held');
+ };
+ for(const event of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(event,e=>{
+  pointers.delete(e.pointerId);
+  if(![...pointers.values()].includes(button))button.classList.remove('held');
+ });
 }
-shoot.onclick=fireBone;
+function pressAction(button,action){
+ button.addEventListener('pointerdown',event=>{
+  if(event.button!==0)return;
+  event.preventDefault();
+  action();
+ });
+ button.addEventListener('click',event=>{
+  if(event.detail===0)action();
+ });
+}
+pressAction(shoot,fireBone);
 const jump=document.querySelector('#jump');
-jump.onpointerdown=e=>{e.preventDefault();buffer=9;};
-jump.onclick=e=>{if(e.detail===0)buffer=9;};
+pressAction(jump,()=>{buffer=9;});
 document.querySelector('#reset').onclick=()=>reset(level);
 next.onclick=()=>reset(level+1);
 select.onchange=()=>reset(Number(select.value));
 reset(0);requestAnimationFrame(frame);
+if(window.isSecureContext&&!window.Capacitor?.isNativePlatform()&&'serviceWorker' in navigator){
+ navigator.serviceWorker.register('./sw.js').catch(error=>console.warn('Hru se nepodařilo připravit pro offline hraní.',error));
+}
 </script></body></html>
